@@ -25,8 +25,8 @@ export async function GET(req: Request) {
     const userReports = (notes || []).map((n: any) => {
       try {
         const data = JSON.parse(n.description || "{}");
-        if (data.consultantId === consultantId) {
-          if (projectId && data.projectId !== projectId) return null;
+        if (String(data.consultantId) === String(consultantId)) {
+          if (projectId && String(data.projectId) !== String(projectId)) return null;
           return { id: n.id, ...data };
         }
       } catch (e) {}

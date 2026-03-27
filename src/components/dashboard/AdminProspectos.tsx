@@ -144,8 +144,20 @@ export default function AdminProspectos() {
     } catch {}
   };
 
+  const handleChangeLastInteractionDate = async (id: string, newDate: string) => {
+    try {
+      setProspects(prev => prev.map(p => p.id === id ? { ...p, lastInteractionDate: newDate } : p));
+      await fetch(`/api/prospects/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ lastInteractionDate: new Date(newDate).toISOString() })
+      });
+      fetchData();
+    } catch {}
+  };
+
   const handleExportCSV = () => {
-    const headers = ["Razón Social", "Nombre Comercial", "RUC", "Rubro", "Persona de Contacto", "Cargo", "Teléfono", "Correo", "Estado", "Observaciones", "Fecha Captación"];
+    const headers = ["Razón Social", "Nombre Comercial", "RUC", "Rubro", "Persona de Contacto", "Cargo", "Teléfono", "Correo", "Estado", "Observaciones", "Fecha Captación", "Última Fecha Contacto"];
     
     const rows = prospects.map(p => [
       p.companyName || "",
@@ -158,7 +170,8 @@ export default function AdminProspectos() {
       p.email || "",
       p.status || "",
       p.notes || "",
-      p.firstContactDate || ""
+      p.firstContactDate ? new Date(p.firstContactDate).toISOString().split('T')[0] : "",
+      p.lastInteractionDate ? new Date(p.lastInteractionDate).toISOString().split('T')[0] : ""
     ].map(field => `"${String(field).replace(/"/g, '""')}"`).join(","));
 
     const csvContent = "data:text/csv;charset=utf-8,\uFEFF" + [headers.join(","), ...rows].join("\n");
@@ -224,6 +237,8 @@ export default function AdminProspectos() {
                 <th className="font-semibold py-3 px-4 border-r border-[#e2e8f0]">Correo</th>
                 <th className="font-semibold py-3 px-4 border-r border-[#e2e8f0]">Estado (Pipeline)</th>
                 <th className="font-semibold py-3 px-4 border-r border-[#e2e8f0] max-w-[200px]">Observaciones</th>
+                <th className="font-semibold py-3 px-4 border-r border-[#e2e8f0] text-center">Fecha de Captación</th>
+                <th className="font-semibold py-3 px-4 border-r border-[#e2e8f0] text-center">Última Fecha de Contacto</th>
                 <th className="font-semibold py-3 px-4 text-center">Acciones</th>
               </tr>
             </thead>
@@ -265,6 +280,17 @@ export default function AdminProspectos() {
                        </select>
                     </td>
                     <td className="py-2.5 px-4 border-r border-border/50 text-[11px] text-[#64748b] truncate max-w-[150px]" title={p.notes}>{p.notes || "—"}</td>
+                    <td className="py-2.5 px-4 border-r border-border/50 text-center font-mono text-[11px] text-text-muted">
+                      {p.firstContactDate ? new Date(p.firstContactDate).toISOString().split('T')[0] : "—"}
+                    </td>
+                    <td className="py-2.5 px-4 border-r border-border/50 text-center">
+                      <input 
+                        type="date"
+                        value={p.lastInteractionDate ? new Date(p.lastInteractionDate).toISOString().split('T')[0] : ""}
+                        onChange={(e) => handleChangeLastInteractionDate(p.id, e.target.value)}
+                        className="bg-transparent text-[11px] font-mono font-bold text-primary outline-none cursor-pointer border hover:border-border border-transparent rounded px-1 min-w-[100px]"
+                      />
+                    </td>
                     <td className="py-2 px-4 text-center space-x-2 whitespace-nowrap">
                        {deleteId === p.id ? (
                          <div className="inline-flex items-center gap-1.5 bg-danger/10 px-2 py-1 rounded">
@@ -288,11 +314,8 @@ export default function AdminProspectos() {
     </div>
 
       {showModal && (
-        <>
-          <div className="fixed inset-0 z-[9998] bg-black/60" onClick={() => setShowModal(false)} />
-          <div className="bg-white rounded-2xl w-[90%] max-w-3xl p-6 shadow-2xl" 
-               style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 9999, maxHeight: '90vh', overflowY: 'auto' }}
-               onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 p-4 h-screen w-screen overflow-y-auto" onClick={() => setShowModal(false)}>
+          <div className="bg-white rounded-2xl text-left w-full max-w-3xl p-6 shadow-2xl relative m-auto" onClick={e => e.stopPropagation()}>
                <h2 className="text-xl font-bold mb-6 pb-2 border-b border-border">
                {editingId ? "Editar Prospecto" : "Registrar Nuevo Prospecto"}
              </h2>
@@ -381,9 +404,9 @@ export default function AdminProspectos() {
                   </button>
                 </div>
 
-             </form>
+              </form>
           </div>
-        </>
+        </div>
       )}
 
     </>

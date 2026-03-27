@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -9,7 +10,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 
     const supabase = await createClient();
 
-    // 1. You CAN update public profile data via standard Client with RLS Admin privileges!
+    // 1. Update public.users profile data via RLS (Admin role)
     let updateData: any = {};
     if (name) updateData.name = name;
     if (status) updateData.status = status;
@@ -21,47 +22,62 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         .eq("id", id)
         .select("id, name, role, status")
         .single();
-        
+
       if (error) throw error;
-      
-      // If there's a password, we would need Service Role Key to update auth.users
+
+      // 2. If password change requested, use admin client
       if (password) {
-        return NextResponse.json({ 
-          success: true, 
-          user: data, 
-          warning: "Nombre/Estado actualizados, pero cambio de PASSWORD requiere Service Role Key (no configurado)." 
-        });
+        try {
+          const supabaseAdmin = createAdminClient();
+          const { error: pwError } = await supabaseAdmin.auth.admin.updateUserById(id, {
+            password,
+          });
+          if (pwError) {
+            return NextResponse.json({
+              success: true,
+              user: data,
+              warning: "Perfil actualizado, pero hubo un error cambiando la contraseña: " + pwError.message,
+            });
+          }
+        } catch {
+          return NextResponse.json({
+            success: true,
+            user: data,
+            warning: "Perfil actualizado. Service Role Key no configurada para cambio de contraseña.",
+          });
+        }
       }
 
       return NextResponse.json({ success: true, user: data });
     }
 
     return NextResponse.json({ success: true });
-  } catch (error) {
-    console.error("Error updates:", error);
-    return NextResponse.json({ error: "Error al actualizar al usuario" }, { status: 500 });
+  } catch (error: any) {
+    return NextResponse.json({ error: error?.message || "Error al actualizar al usuario" }, { status: 500 });
   }
 }
 
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
-    // Hard deleting a user requires deleting them from auth.users (which cascades to public.users).
-    // Doing this requires auth.admin.deleteUser() with Service Role Key.
-    
-    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-    if (!supabaseKey) {
-      return NextResponse.json({ 
-        error: "Se requiere SUPABASE_SERVICE_ROLE_KEY en .env.local para eliminar cuentas." 
-      }, { status: 501 });
+
+    const supabaseAdmin = createAdminClient();
+
+    // Delete from auth.users (cascades to public.users via FK)
+    const { error } = await supabaseAdmin.auth.admin.deleteUser(id);
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
     }
 
-    // Si tuvieras el Key:
-    // const supabaseAdmin = createClient(URL, KEY);
-    // await supabaseAdmin.auth.admin.deleteUser(id);
-    
-    return NextResponse.json({ error: "Funcionalidad pausada hasta tener Service Role." }, { status: 501 });
-  } catch (error) {
+    return NextResponse.json({ success: true });
+  } catch (error: any) {
+    if (error?.message?.includes("SUPABASE_SERVICE_ROLE_KEY")) {
+      return NextResponse.json(
+        { error: "Se requiere SUPABASE_SERVICE_ROLE_KEY en .env.local para eliminar cuentas." },
+        { status: 501 }
+      );
+    }
     return NextResponse.json({ error: "No se pudo eliminar el usuario." }, { status: 400 });
   }
 }

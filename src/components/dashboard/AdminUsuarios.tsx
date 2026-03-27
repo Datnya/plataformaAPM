@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Eye, EyeOff } from "lucide-react";
 
 interface UserData {
   id: string;
@@ -31,6 +32,8 @@ export default function AdminUsuarios() {
   const [addRole, setAddRole] = useState("CONSULTOR");
   const [addLoading, setAddLoading] = useState(false);
   const [addMsg, setAddMsg] = useState({ text: "", type: "" });
+  const [showAddPassword, setShowAddPassword] = useState(false);
+  const [showEditPassword, setShowEditPassword] = useState(false);
 
   // Delete states
   const [delError, setDelError] = useState("");
@@ -111,6 +114,7 @@ export default function AdminUsuarios() {
         setEditId(null);
         setNewName("");
         setNewPassword("");
+        setShowEditPassword(false);
         setSaved(false);
       }, 1200);
     } catch (err: any) {
@@ -157,6 +161,7 @@ export default function AdminUsuarios() {
       setAddName("");
       setAddEmail("");
       setAddPassword("");
+      setShowAddPassword(false);
       setAddRole("CONSULTOR");
 
       // Refresh user list
@@ -279,7 +284,16 @@ export default function AdminUsuarios() {
               <input required type="text" placeholder="Ej: Juan Pérez" value={newName} onChange={e => setNewName(e.target.value)} className="input-field mb-3" />
 
               <label className="block text-xs font-semibold mb-1">Contraseña (opcional)</label>
-              <input type="password" placeholder="Nueva contraseña o dejar en blanco" value={newPassword} onChange={e => setNewPassword(e.target.value)} className="input-field mb-5" />
+              <div className="relative mb-5">
+                <input type={showEditPassword ? "text" : "password"} placeholder="Nueva contraseña o dejar en blanco" value={newPassword} onChange={e => setNewPassword(e.target.value)} className="input-field pr-10" />
+                <button
+                  type="button"
+                  onClick={() => setShowEditPassword(!showEditPassword)}
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-text-muted hover:text-primary transition-colors"
+                >
+                  {showEditPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
 
               <div className="flex gap-3">
                 <button type="button" onClick={() => setEditId(null)} className="btn-secondary w-full py-2" disabled={saving || saved}>Cancelar</button>
@@ -322,7 +336,16 @@ export default function AdminUsuarios() {
 
               <div>
                 <label className="block text-sm font-medium mb-1.5">Contraseña Temporal</label>
-                <input required type="password" className="input-field" placeholder="••••••••" value={addPassword} onChange={e => setAddPassword(e.target.value)} />
+                <div className="relative">
+                  <input required type={showAddPassword ? "text" : "password"} className="input-field pr-10" placeholder="••••••••" value={addPassword} onChange={e => setAddPassword(e.target.value)} />
+                  <button
+                    type="button"
+                    onClick={() => setShowAddPassword(!showAddPassword)}
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-text-muted hover:text-primary transition-colors"
+                  >
+                    {showAddPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
               </div>
 
               <div>

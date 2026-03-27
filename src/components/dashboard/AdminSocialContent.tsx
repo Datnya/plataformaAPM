@@ -44,7 +44,7 @@ export default function AdminSocialContent() {
       setEditId(item.id);
       setTitle(item.title || "");
       setDescription(item.description || "");
-      try { setNetworks(JSON.parse(item.networks)); } catch { setNetworks([]); }
+      try { setNetworks(Array.isArray(item.networks) ? item.networks : JSON.parse(item.networks)); } catch { setNetworks([]); }
       setContentType(item.contentType);
       setFormat(item.format);
       setStatus(item.status);
@@ -153,7 +153,7 @@ export default function AdminSocialContent() {
               ) : (
                 contents.map((item, idx) => {
                   let netArr: string[] = [];
-                  try { netArr = JSON.parse(item.networks); } catch {}
+                  try { netArr = Array.isArray(item.networks) ? item.networks : JSON.parse(item.networks); } catch {}
                   
                   return (
                     <tr key={item.id} className="border-b border-border-light hover:bg-surface/30 transition-colors">
@@ -187,11 +187,11 @@ export default function AdminSocialContent() {
                       <td className="py-4 px-5 text-center">
                          <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border ${
                            item.status === 'PENDIENTE' ? 'bg-surface border-border text-text-muted' : 
-                           item.status === 'EN PROCESO' ? 'bg-warning/10 border-warning text-warning-hover' : 
+                           item.status === 'EN_PROCESO' ? 'bg-warning/10 border-warning text-warning-hover' : 
                            'bg-success/10 border-success text-success-hover'
                          }`}>
                            {item.status === 'LANZADO' && <CheckCircle size={14} />}
-                           {item.status === 'EN PROCESO' && <Loader2 size={14} className="animate-spin" />}
+                           {item.status === 'EN_PROCESO' && <Loader2 size={14} className="animate-spin" />}
                            {item.status === 'PENDIENTE' && <Clock size={14} />}
                            {item.status}
                          </span>
@@ -220,11 +220,8 @@ export default function AdminSocialContent() {
     </div>
 
       {showModal && (
-        <>
-          <div className="fixed inset-0 z-[9998] bg-black/60" onClick={() => setShowModal(false)} />
-          <div className="bg-white rounded-2xl w-[90%] max-w-2xl p-6 shadow-2xl" 
-               style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 9999, maxHeight: '90vh', overflowY: 'auto' }}
-               onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 p-4 h-[100dvh] w-screen overflow-y-auto" onClick={() => setShowModal(false)}>
+          <div className="bg-white rounded-2xl w-full max-w-2xl p-6 shadow-2xl relative m-auto" onClick={e => e.stopPropagation()}>
                <h2 className="text-xl font-bold mb-6 pb-3 border-b border-border flex items-center gap-2">
                  <Calendar className="text-primary" />
                  {editId ? "Editar Publicación Programada" : "Programar Nueva Publicación"}
@@ -287,7 +284,7 @@ export default function AdminSocialContent() {
                      <label className="block text-xs font-semibold mb-1 text-text-muted uppercase tracking-wide">Estado *</label>
                      <select className="input-field font-bold" value={status} onChange={e => setStatus(e.target.value)}>
                        <option value="PENDIENTE">PENDIENTE (Programado/Ideal)</option>
-                       <option value="EN PROCESO">EN PROCESO (Diseñando/Editando)</option>
+                       <option value="EN_PROCESO">EN PROCESO (Diseñando/Editando)</option>
                        <option value="LANZADO">LANZADO (Publicado)</option>
                      </select>
                    </div>
@@ -303,7 +300,7 @@ export default function AdminSocialContent() {
                </form>
 
              </div>
-        </>
+        </div>
       )}
 
     </>

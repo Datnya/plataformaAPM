@@ -17,8 +17,13 @@ import {
   X,
   Building2,
   Mail,
-  Target
+  Target,
+  Award,
+  FileDown
 } from "lucide-react";
+
+import JSZip from "jszip";
+import { saveAs } from "file-saver";
 
 const statusColors: any = {
   PENDIENTE: "bg-surface text-text-muted border-border",
@@ -52,6 +57,10 @@ export default function AdminProyectos() {
   const [reports, setReports] = useState<any[]>([]);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
+  // Detail Client Users states
+  const [showAddClientUser, setShowAddClientUser] = useState(false);
+  const [selectedNewClientId, setSelectedNewClientId] = useState("");
+
   // Detail Goals states
   const [showAddGoal, setShowAddGoal] = useState(false);
   const [goalDesc, setGoalDesc] = useState("");
@@ -62,8 +71,8 @@ export default function AdminProyectos() {
     setLoading(true);
     try {
       const [projRes, usersRes] = await Promise.all([
-        fetch("/api/projects"),
-        fetch("/api/admin/users")
+        fetch(`/api/projects?t=${Date.now()}`, { cache: "no-store" }),
+        fetch(`/api/admin/users?t=${Date.now()}`, { cache: "no-store" })
       ]);
       setProjects(await projRes.json());
       setUsers(await usersRes.json());
@@ -86,13 +95,13 @@ export default function AdminProyectos() {
     setView("detail");
     try {
       // Fetch full project with goals, timeLogs, clientUsers
-      const pRes = await fetch(`/api/projects/${projectId}`);
+      const pRes = await fetch(`/api/projects/${projectId}?t=${Date.now()}`, { cache: "no-store" });
       const pData = await pRes.json();
       setDetailProject(pData && !pData.error ? pData : null);
 
       // Fetch reports if consultant is assigned
       if (consId) {
-        const rRes = await fetch(`/api/consultant/reports?consultantId=${consId}&projectId=${projectId}`);
+        const rRes = await fetch(`/api/consultant/reports?consultantId=${consId}&projectId=${projectId}&t=${Date.now()}`, { cache: "no-store" });
         const rData = await rRes.json();
         setReports(rData.reports || []);
       } else {
@@ -234,6 +243,58 @@ export default function AdminProyectos() {
     } catch (e) { console.error(e); }
   };
 
+  const handleUnlinkClient = async (clientIdToRemove: string) => {
+    if (!confirm("¿Desvincular a este usuario del proyecto?")) return;
+    try {
+        const newClientIds = detailProject.clientUsers.map((cu: any) => cu.id).filter((id: string) => id !== clientIdToRemove);
+        const res = await fetch(`/api/projects/${detailProject.id}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ clientUserIds: newClientIds })
+        });
+        if (res.ok) {
+            await openDetail(detailProject.id, detailProject.consultantId); // Refresh detail view
+            fetchData(); // Refresh list to keep consistent
+        } else {
+            const data = await res.json();
+            alert(data.error || "Error al desvincular");
+        }
+    } catch {
+       alert("Error de red");
+    }
+  };
+
+  const handleAddClientUser = async () => {
+    if (!selectedNewClientId || !detailProject) return;
+    
+    // Prevent adding if already added
+    if (detailProject.clientUsers?.some((cu: any) => cu.id === selectedNewClientId)) {
+      alert("Este cliente ya está vinculado.");
+      return;
+    }
+
+    try {
+      const existingIds = detailProject.clientUsers ? detailProject.clientUsers.map((cu: any) => cu.id) : [];
+      const newClientIds = [...existingIds, selectedNewClientId];
+      const res = await fetch(`/api/projects/${detailProject.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ clientUserIds: newClientIds })
+      });
+      if (res.ok) {
+          setShowAddClientUser(false);
+          setSelectedNewClientId("");
+          await openDetail(detailProject.id, detailProject.consultantId);
+          fetchData();
+      } else {
+          const data = await res.json();
+          alert(data.error || "Error al agregar usuario");
+      }
+    } catch {
+      alert("Error de red");
+    }
+  };
+
   const parseJsonStr = (val?: string) => {
     if (!val) return ["", ""];
     try {
@@ -304,15 +365,43 @@ export default function AdminProyectos() {
         </div>
 
         <div className="card w-full mb-6">
-          <h2 className="text-sm font-bold flex items-center gap-2 mb-3">
-            <Building2 size={16} className="text-primary" /> Usuarios de Clientes Vinculados
-          </h2>
+          <div className="flex justify-between items-center mb-3">
+            <h2 className="text-sm font-bold flex items-center gap-2">
+              <Building2 size={16} className="text-primary" /> Usuarios de Clientes Vinculados
+            </h2>
+            {!showAddClientUser && (
+              <button 
+                onClick={() => setShowAddClientUser(true)}
+                className="btn-primary py-1.5 px-3 text-xs flex items-center gap-1"
+              >
+                 <Plus size={14} /> Asignar Cliente
+              </button>
+            )}
+          </div>
+
+          {showAddClientUser && (
+            <div className="flex items-center gap-2 mb-4 bg-surface/50 p-2 rounded-lg border border-border animate-fade-in">
+              <select 
+                className="input-field text-sm"
+                value={selectedNewClientId}
+                onChange={e => setSelectedNewClientId(e.target.value)}
+              >
+                <option value="">Selecciona un cliente...</option>
+                {users.filter(u => u.role === "CLIENTE" && u.status === "ACTIVO" && !detailProject.clientUsers?.some((cu: any) => cu.id === u.id)).map(u => (
+                  <option key={u.id} value={u.id}>{u.name} ({u.email})</option>
+                ))}
+              </select>
+              <button onClick={handleAddClientUser} disabled={!selectedNewClientId} className="btn-primary py-2 px-4 shadow-sm text-sm whitespace-nowrap disabled:opacity-50">Guardar</button>
+              <button onClick={() => { setShowAddClientUser(false); setSelectedNewClientId(""); }} className="p-2 text-text-muted hover:text-danger hover:bg-danger/10 rounded transition-colors bg-white border border-border shadow-sm"><X size={18} /></button>
+            </div>
+          )}
+
           {(!detailProject.clientUsers || detailProject.clientUsers.length === 0) ? (
             <p className="text-xs text-text-muted">No hay clientes vinculados a este proyecto.</p>
           ) : (
             <div className="flex flex-wrap gap-4">
               {detailProject.clientUsers.map((cu: any) => (
-                <div key={cu.id} className="flex items-center gap-2 text-sm bg-surface/50 border border-border rounded-lg px-3 py-2">
+                <div key={cu.id} className="group relative flex items-center gap-2 text-sm bg-surface/50 border border-border rounded-lg px-3 py-2 pr-10 hover:border-primary/30 transition-colors shadow-sm">
                   <div className="w-8 h-8 rounded bg-success/10 flex items-center justify-center text-success">
                     <Users size={16} />
                   </div>
@@ -322,10 +411,85 @@ export default function AdminProyectos() {
                       <Mail size={10} /> {cu.email}
                     </a>
                   </div>
+                  <button 
+                    onClick={() => handleUnlinkClient(cu.id)}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 text-danger hover:bg-danger/10 p-1.5 rounded transition-all"
+                    title="Desvincular usuario"
+                  >
+                    <X size={14} />
+                  </button>
                 </div>
               ))}
             </div>
           )}
+        </div>
+
+        {/* ADMIN CERTIFICADOS PANEL (MOVED FROM CLIENTS VIEW) */}
+        <div className="card w-full mb-6">
+           <h2 className="text-sm font-bold flex items-center gap-2 mb-4">
+             <Award size={16} className="text-primary" /> Certificados Generados
+           </h2>
+           
+           {(!detailProject.certificates || detailProject.certificates.length === 0) ? (
+              <div className="bg-surface rounded-xl p-8 text-center border border-border border-dashed">
+                <p className="text-text-muted/60 text-sm font-medium">No se han emitido certificados para este proyecto.</p>
+              </div>
+           ) : (
+              <div className="space-y-4">
+                 {Object.entries((detailProject.certificates || []).reduce((acc: any, cert: any) => {
+                    if (!acc[cert.course_title]) acc[cert.course_title] = [];
+                    acc[cert.course_title].push(cert);
+                    return acc;
+                 }, {})).map(([courseTitle, certs]: any) => (
+                    <div key={courseTitle} className="border border-border rounded-xl p-4 bg-surface/30">
+                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
+                          <div>
+                             <p className="font-bold text-sm">{courseTitle}</p>
+                             <p className="text-xs text-text-muted">{certs.length} certificados emitidos</p>
+                          </div>
+                          <button
+                             onClick={async () => {
+                                try {
+                                  const zip = new JSZip();
+                                  const folder = zip.folder(courseTitle);
+                                  if (!folder) return;
+                                  
+                                  // Fetch all pdfs
+                                  await Promise.all(certs.map(async (c: any) => {
+                                     if (!c.pdf_url) return;
+                                     const res = await fetch(c.pdf_url);
+                                     const blob = await res.blob();
+                                     folder.file(`${c.participant_name}.pdf`, blob);
+                                  }));
+                                  
+                                  const content = await zip.generateAsync({ type: "blob" });
+                                  saveAs(content, `${courseTitle}_certificados.zip`);
+                                } catch (e) {
+                                  alert("Error al descargar el archivo ZIP.");
+                                }
+                             }}
+                             className="btn-secondary text-xs py-1.5 px-3 flex items-center gap-2"
+                          >
+                             <FileDown size={14} /> Descargar ZIP Masivo
+                          </button>
+                       </div>
+                       
+                       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+                         {certs.map((c: any) => (
+                           <div key={c.id} className="flex items-center justify-between p-2 rounded-lg border border-border bg-white">
+                              <span className="text-xs font-medium truncate pr-2">{c.participant_name}</span>
+                              {c.pdf_url && (
+                                 <a href={c.pdf_url} target="_blank" rel="noopener noreferrer" className="text-primary hover:bg-primary/10 p-1.5 rounded-md transition-colors" title="Ver / Descargar PDF">
+                                    <Download size={14} />
+                                 </a>
+                              )}
+                           </div>
+                         ))}
+                       </div>
+                    </div>
+                 ))}
+              </div>
+           )}
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
@@ -418,7 +582,7 @@ export default function AdminProyectos() {
         {/* TIME LOGS READONLY */}
         <div className="card mt-6">
           <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
-            <Clock size={20} className="text-primary" /> Panel de Jornadas Registradas (Solo lectura)
+            <Clock size={20} className="text-primary" /> Panel de Jornadas Registradas
           </h2>
           {timeLogs.length === 0 ? (
             <div className="p-8 text-center text-text-muted border border-border border-dashed rounded-xl">

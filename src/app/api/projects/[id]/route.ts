@@ -14,7 +14,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         consultant:users!projects_consultant_id_fkey ( id, name, email ),
         project_client_users ( user_id, users ( id, name, email ) ),
         goals ( id, description, type, status, due_date, created_at ),
-        time_logs ( id, date, check_in_time, check_out_time, modality, areas_visited, people_met, evidence_urls, created_at )
+        time_logs ( id, date, check_in_time, check_out_time, modality, areas_visited, people_met, evidence_urls, created_at ),
+        certificates ( id, course_title, participant_name, pdf_url )
       `)
       .eq("id", id)
       .single();
@@ -34,6 +35,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       createdAt: project.created_at,
       consultant: project.consultant,
       clientUsers: (project.project_client_users || []).map((pcu: any) => pcu.users),
+      certificates: project.certificates || [],
       goals: (project.goals || []).map((g: any) => ({
         id: g.id, description: g.description, type: g.type, status: g.status,
         dueDate: g.due_date, createdAt: g.created_at,
@@ -85,21 +87,24 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     if (name) updateData.name = name;
     if (consultantId) updateData.consultant_id = consultantId;
 
-    const { data: updated, error } = await supabase
-      .from("projects")
-      .update(updateData)
-      .eq("id", id)
-      .select()
-      .single();
-
-    if (error) throw error;
+    let updated = null;
+    if (Object.keys(updateData).length > 0) {
+      const { data, error } = await supabase
+        .from("projects")
+        .update(updateData)
+        .eq("id", id)
+        .select()
+        .single();
+      if (error) throw error;
+      updated = data;
+    }
 
     // Update client users junction table
     if (clientUserIds) {
       await supabase.from("project_client_users").delete().eq("project_id", id);
       if (clientUserIds.length > 0) {
         const junctionRows = clientUserIds.map((uid: string) => ({
-          project_id: Number(id),
+          project_id: id,
           user_id: uid,
         }));
         await supabase.from("project_client_users").insert(junctionRows);

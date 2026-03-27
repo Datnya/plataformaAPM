@@ -46,6 +46,7 @@ interface ConsultantProjectDetail {
   id: string;
   name: string;
   clientName: string;
+  clientUsers?: { id: string; name: string; email: string }[];
   progress: number;
   totalGoals: number;
   completedGoals: number;
@@ -248,13 +249,28 @@ export default function ConsultorProyectos() {
           Volver a mis proyectos
         </button>
 
-        <div className="flex items-center gap-4">
-          <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
-            <Briefcase size={24} strokeWidth={1.5} className="text-primary" />
+        <div className="flex flex-col md:flex-row md:items-center gap-4">
+          <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+            <Briefcase size={32} strokeWidth={1.5} className="text-primary" />
           </div>
-          <div>
-            <h1 className="text-2xl font-bold">{proj.name}</h1>
-            <p className="text-sm text-text-muted">Cliente: {proj.clientName}</p>
+          <div className="flex-1">
+            <h1 className="text-3xl font-black uppercase text-foreground leading-tight">{proj.name}</h1>
+            {proj.clientUsers && proj.clientUsers.length > 0 ? (
+              <div className="flex flex-wrap items-center gap-3 mt-2">
+                <span className="text-sm font-semibold text-text-muted">Clientes vinculados:</span>
+                {proj.clientUsers.map((cu: any) => (
+                   <span key={cu.id} className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-surface border border-border rounded-lg text-xs font-medium text-foreground">
+                      <Users size={12} className="text-primary"/> 
+                      {cu.name} 
+                      <a href={`mailto:${cu.email}`} className="text-text-muted hover:text-primary transition-colors ml-1">({cu.email})</a>
+                   </span>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm font-medium text-text-muted mt-2 border border-border border-dashed inline-flex px-3 py-1 rounded bg-surface/50">
+                Cliente: {proj.clientName}
+              </p>
+            )}
           </div>
         </div>
 
@@ -596,36 +612,63 @@ export default function ConsultorProyectos() {
           <p className="font-medium">No tienes proyectos asignados actualmente.</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 w-full max-w-7xl">
           {projects.map(proj => (
             <button
               key={proj.id}
               onClick={() => openDetail(proj)}
-              className="card text-left hover:shadow-lg hover:border-primary/20 transition-all group cursor-pointer relative overflow-hidden flex flex-col items-start gap-4"
+              className="card p-6 md:p-8 text-left hover:shadow-xl hover:border-primary/30 transition-all duration-300 group cursor-pointer relative overflow-hidden flex flex-col items-start gap-6 border-b-[4px] border-b-border hover:border-b-primary bg-white"
             >
-              <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-primary to-primary/40 rounded-t-xl opacity-0 group-hover:opacity-100 transition-opacity" />
-              
-              <div className="flex items-center gap-4 w-full">
-                <div className="w-11 h-11 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                  <Briefcase size={20} className="text-primary" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <h3 className="font-bold text-sm truncate">{proj.name}</h3>
-                  <p className="text-xs text-text-muted truncate">Cliente: {proj.clientName}</p>
-                </div>
-                <ChevronRight size={18} className="text-text-light group-hover:text-primary transition-colors flex-shrink-0" />
+              <div className="absolute top-0 right-0 p-8 opacity-0 group-hover:opacity-10 translate-x-4 group-hover:translate-x-0 transition-all duration-500">
+                <Briefcase size={80} className="text-primary" />
               </div>
               
-              <div className="w-full mt-2">
-                  <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-[10px] font-semibold text-text-muted uppercase">Avance</span>
-                    <span className="text-xs font-bold text-primary-hover">{proj.progress}%</span>
+              <div className="flex items-start gap-5 w-full relative z-10">
+                <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center flex-shrink-0 shadow-sm border border-primary/20">
+                  <Briefcase size={28} className="text-primary" />
+                </div>
+                <div className="flex-1 min-w-0 pr-8">
+                  <h3 className="font-extrabold text-xl md:text-2xl uppercase tracking-tight text-foreground group-hover:text-primary transition-colors leading-tight mb-2">
+                    {proj.name}
+                  </h3>
+                  
+                  {proj.clientUsers && proj.clientUsers.length > 0 ? (
+                    <div className="flex flex-col gap-1.5 mt-3">
+                      <span className="text-[10px] font-bold text-text-muted uppercase tracking-wider">Clientes Asignados:</span>
+                      {proj.clientUsers.slice(0, 2).map((cu: any) => (
+                        <span key={cu.id} className="text-xs font-semibold text-text-muted flex items-center gap-1.5 truncate">
+                          <Users size={12} className="text-primary/70" /> {cu.name}
+                        </span>
+                      ))}
+                      {proj.clientUsers.length > 2 && (
+                        <span className="text-[10px] font-bold text-info bg-info/10 px-2 py-0.5 rounded w-max mt-1">
+                          +{proj.clientUsers.length - 2} más
+                        </span>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="text-xs font-semibold text-text-muted flex items-center gap-1 mt-2">
+                      <Users size={12} /> {proj.clientName}
+                    </p>
+                  )}
+                </div>
+                <div className="absolute top-2 right-0 w-8 h-8 rounded-full bg-surface group-hover:bg-primary/10 flex items-center justify-center transition-colors">
+                  <ChevronRight size={18} className="text-text-muted group-hover:text-primary transition-colors" />
+                </div>
+              </div>
+              
+              <div className="w-full mt-auto pt-4 relative z-10">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-bold text-text-muted uppercase tracking-wider">Avance Global</span>
+                    <span className="text-sm font-black text-primary group-hover:scale-110 transition-transform">{proj.progress}%</span>
                   </div>
-                  <div className="h-2 bg-surface rounded-full overflow-hidden w-full">
+                  <div className="h-3 bg-surface rounded-full overflow-hidden w-full shadow-inner border border-border-light">
                     <div
-                      className="h-full rounded-full bg-primary transition-all duration-700 ease-out"
+                      className="h-full rounded-full bg-gradient-to-r from-primary/80 to-primary transition-all duration-1000 ease-out relative"
                       style={{ width: `${proj.progress}%` }}
-                    />
+                    >
+                      <div className="absolute inset-0 bg-white/20 w-full h-full animate-[shimmer_2s_infinite]"></div>
+                    </div>
                   </div>
               </div>
             </button>

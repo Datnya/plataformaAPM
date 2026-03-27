@@ -11,8 +11,17 @@ import {
   CheckCircle2,
   Loader2,
   AlertCircle,
-  ChevronRight
+  ChevronRight,
+  Plus,
+  Trash2,
+  X,
+  Building2,
+  Award,
+  Download,
+  FileDown
 } from "lucide-react";
+import JSZip from "jszip";
+import { saveAs } from "file-saver";
 
 interface ClientUser {
   id: string;
@@ -39,6 +48,7 @@ interface ProjectDetail {
   goals: GoalData[];
   hoursThisMonth: number;
   totalLogs: number;
+  certificates?: any[];
 }
 
 const statusColors: Record<string, string> = {
@@ -64,6 +74,12 @@ export default function AdminControlClientes() {
   const [detail, setDetail] = useState<{ client: ClientUser; projects: ProjectDetail[] } | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
 
+  // Assignment states
+  const [allProjects, setAllProjects] = useState<any[]>([]);
+  const [showAddProject, setShowAddProject] = useState(false);
+  const [selectedProjectId, setSelectedProjectId] = useState("");
+  const [acting, setActing] = useState(false);
+
   useEffect(() => {
     fetchClients();
   }, []);
@@ -71,7 +87,7 @@ export default function AdminControlClientes() {
   const fetchClients = async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/admin/clients");
+      const res = await fetch("/api/admin/clients", { cache: "no-store" });
       const data = await res.json();
       setClients(Array.isArray(data.clients) ? data.clients : []);
     } catch {
@@ -84,13 +100,61 @@ export default function AdminControlClientes() {
     setSelectedClient(client);
     setDetailLoading(true);
     try {
-      const res = await fetch(`/api/admin/clients?clientId=${client.id}`);
-      const detailData = await res.json();
+      const [detailRes, projRes] = await Promise.all([
+        fetch(`/api/admin/clients?clientId=${client.id}&t=${Date.now()}`, { cache: "no-store" }),
+        fetch(`/api/projects?t=${Date.now()}`, { cache: "no-store" })
+      ]);
+      const detailData = await detailRes.json();
       setDetail(detailData && !detailData.error ? detailData : null);
+
+      const projData = await projRes.json();
+      setAllProjects(Array.isArray(projData) ? projData : []);
+      setShowAddProject(false);
+      setSelectedProjectId("");
     } catch {
       setDetail(null);
     }
     setDetailLoading(false);
+  };
+
+  const handleAssignProject = async () => {
+    if (!selectedClient || !selectedProjectId) return;
+    setActing(true);
+    try {
+      const res = await fetch("/api/admin/clients/projects", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectId: selectedProjectId, clientId: selectedClient.id })
+      });
+      if (res.ok) {
+        await openClientDetail(selectedClient);
+      } else {
+        const data = await res.json();
+        alert(data.error || "Error asignando proyecto");
+      }
+    } catch {
+      alert("Error de red");
+    }
+    setActing(false);
+  };
+
+  const handleRemoveProject = async (projectId: string) => {
+    if (!selectedClient || !confirm("¿Eliminar este proyecto del perfil del cliente?")) return;
+    setActing(true);
+    try {
+      const res = await fetch(`/api/admin/clients/projects?projectId=${projectId}&clientId=${selectedClient.id}`, {
+        method: "DELETE"
+      });
+      if (res.ok) {
+        await openClientDetail(selectedClient);
+      } else {
+        const data = await res.json();
+        alert(data.error || "Error al eliminar proyecto");
+      }
+    } catch {
+      alert("Error de red");
+    }
+    setActing(false);
   };
 
   const goBack = () => {
@@ -131,25 +195,68 @@ export default function AdminControlClientes() {
             <Loader2 size={20} className="animate-spin" />
             Cargando información del cliente...
           </div>
-        ) : !detail || detail.projects.length === 0 ? (
-          <div className="card text-center py-12 text-text-muted">
-            <AlertCircle size={32} className="mx-auto mb-3 opacity-40" />
-            <p className="font-medium">Este cliente no tiene proyectos asignados actualmente.</p>
-          </div>
         ) : (
-          detail.projects.map(proj => (
-            <div key={proj.id} className="card space-y-5">
-              {/* Project header */}
-              <div className="flex items-start justify-between">
-                <div>
-                  <h2 className="text-lg font-bold">{proj.name}</h2>
-                  {proj.consultant && (
-                    <p className="text-xs text-text-muted mt-1">
-                      <span className="font-semibold">Consultor:</span> {proj.consultant.name}
-                    </p>
-                  )}
+          <div className="space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 card w-full">
+              <h2 className="text-lg font-bold flex items-center gap-2">
+                <Building2 size={20} className="text-primary" /> Proyectos Asignados
+              </h2>
+              {!showAddProject ? (
+                <button 
+                  onClick={() => setShowAddProject(true)}
+                  className="btn-primary py-1.5 px-3 text-xs flex items-center gap-1 shadow-sm"
+                  disabled={acting}
+                >
+                  <Plus size={14} /> Asignar Proyecto
+                </button>
+              ) : (
+                <div className="flex items-center gap-2 flex-wrap">
+                  <select 
+                    className="input-field py-1.5 text-sm min-w-[200px]"
+                    value={selectedProjectId}
+                    onChange={(e) => setSelectedProjectId(e.target.value)}
+                    disabled={acting}
+                  >
+                    <option value="">Selecciona un proyecto...</option>
+                    {allProjects
+                      .filter(p => !detail?.projects.some(dp => dp.id === p.id))
+                      .map(p => (
+                        <option key={p.id} value={p.id}>{p.name}</option>
+                      ))}
+                  </select>
+                  <button onClick={handleAssignProject} disabled={!selectedProjectId || acting} className="btn-primary py-1.5 px-3 shadow-sm text-sm disabled:opacity-50">Guardar</button>
+                  <button onClick={() => { setShowAddProject(false); setSelectedProjectId(""); }} disabled={acting} className="p-1.5 text-text-muted hover:text-danger hover:bg-danger/10 rounded transition-colors bg-white border border-border"><X size={16} /></button>
                 </div>
+              )}
+            </div>
+
+            {!detail || detail.projects.length === 0 ? (
+              <div className="card text-center py-12 text-text-muted border-dashed border-2">
+                <AlertCircle size={32} className="mx-auto mb-3 opacity-40" />
+                <p className="font-medium">Este cliente aún no tiene proyectos asignados.</p>
               </div>
+            ) : (
+              detail.projects.map(proj => (
+                <div key={proj.id} className="card space-y-5 border-l-4 border-l-primary hover:shadow-md transition-shadow">
+                  {/* Project header */}
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <h2 className="text-lg font-bold">{proj.name}</h2>
+                      {proj.consultant && (
+                        <p className="text-xs text-text-muted mt-1">
+                          <span className="font-semibold">Consultor:</span> {proj.consultant.name}
+                        </p>
+                      )}
+                    </div>
+                    <button 
+                      onClick={() => handleRemoveProject(proj.id)}
+                      disabled={acting}
+                      className="text-danger hover:bg-danger/10 p-2 rounded-lg transition-colors disabled:opacity-50"
+                      title="Eliminar proyecto de este cliente"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
 
               {/* KPI cards */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -240,6 +347,8 @@ export default function AdminControlClientes() {
               </div>
             </div>
           ))
+        )}
+          </div>
         )}
       </div>
     );

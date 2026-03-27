@@ -17,7 +17,8 @@ import {
   LogOut,
   Menu,
   X,
-  Share2
+  Share2,
+  Award
 } from "lucide-react";
 
 interface NavItem {
@@ -42,6 +43,7 @@ const navItems: NavItem[] = [
   { label: "CRM Prospectos", view: "prospectos", icon: <Briefcase size={18} strokeWidth={1.8} />, roles: ["ADMIN"] },
   { label: "Gestión de Redes", view: "redes", icon: <Share2 size={18} strokeWidth={1.8} />, roles: ["ADMIN"] },
   { label: "Calendario APM", view: "calendario", icon: <CalendarDays size={18} strokeWidth={1.8} />, roles: ["ADMIN"] },
+  { label: "Generar Certificados", view: "certificados", icon: <Award size={18} strokeWidth={1.8} />, roles: ["ADMIN"] },
 ];
 
 export default function MobileSidebar() {

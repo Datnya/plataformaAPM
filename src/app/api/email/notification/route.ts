@@ -23,7 +23,6 @@ export async function POST(req: NextRequest) {
     };
 
     // Simularemos el envío exitoso para la demo
-    console.log("Mock Email Sent: ", emailData);
 
     return NextResponse.json({ success: true, message: "Correos notificados con éxito." });
   } catch (error) {

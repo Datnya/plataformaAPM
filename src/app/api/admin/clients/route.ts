@@ -39,7 +39,8 @@ export async function GET(req: NextRequest) {
             id, name, consultant_id,
             consultant:users!projects_consultant_id_fkey ( id, name ),
             goals ( id, description, type, status, due_date ),
-            time_logs ( check_in_time, check_out_time, date, consultant_id )
+            time_logs ( check_in_time, check_out_time, date, consultant_id ),
+            certificates ( id, course_title, participant_name, pdf_url )
           `)
           .in("id", projectIds);
 
@@ -72,10 +73,11 @@ export async function GET(req: NextRequest) {
             completedGoals,
             goals: goals.map((g: any) => ({
               id: g.id, description: g.description, type: g.type,
-              status: g.status, dueDate: g.due_date,
+            status: g.status, dueDate: g.due_date,
             })),
             hoursThisMonth: Math.round(totalHours * 100) / 100,
             totalLogs: monthLogs.length,
+            certificates: proj.certificates || []
           };
         });
       }

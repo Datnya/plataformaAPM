@@ -18,7 +18,7 @@ export async function GET(req: Request) {
       .select(`
         id, name, client_id, consultant_id, created_at,
         clients ( id, company_name ),
-        project_client_users ( user_id, users ( id, name ) ),
+        project_client_users ( user_id, users ( id, name, email ) ),
         goals ( id, description, type, status, due_date, created_at ),
         time_logs ( id, date, check_in_time, check_out_time, modality, areas_visited, people_met, evidence_urls, created_at )
       `)
@@ -45,15 +45,16 @@ export async function GET(req: Request) {
         if (t.modality === "PRESENCIAL") presencialDays++;
       });
 
-      // Get client name from clients table or from linked client users
-      const clientName = p.clients?.company_name
-        || (p.project_client_users?.[0]?.users?.name)
-        || "Sin cliente";
+      const clientUsers = (p.project_client_users || []).map((pcu: any) => pcu.users).filter(Boolean);
+      const clientName = clientUsers.length > 0 
+        ? clientUsers.map((u: any) => u.name).join(", ")
+        : "Sin cliente asignado";
 
       return {
         id: p.id,
         name: p.name,
         clientName,
+        clientUsers,
         progress,
         totalGoals,
         completedGoals,

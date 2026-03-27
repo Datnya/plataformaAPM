@@ -20,6 +20,7 @@ import AdminCalendario from "@/components/dashboard/AdminCalendario";
 import AdminControlClientes from "@/components/dashboard/AdminControlClientes";
 
 import AdminSocialContent from "@/components/dashboard/AdminSocialContent";
+import AdminCertificados from "@/components/dashboard/AdminCertificados";
 
 const viewMap: Record<string, Record<string, React.FC>> = {
   CONSULTOR: {
@@ -43,6 +44,7 @@ const viewMap: Record<string, Record<string, React.FC>> = {
     "consultant-goals": AdminConsultorGoals,
     calendario: AdminCalendario,
     redes: AdminSocialContent,
+    certificados: AdminCertificados,
     // Admin can see all consultor/client views too
     jornada: ConsultorJornada,
     objetivos: ConsultorObjetivos,
