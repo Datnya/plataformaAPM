@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import prisma from "@/lib/prisma";
+import { createClient } from "@/lib/supabase/server";
 
 export async function POST(req: NextRequest) {
   try {
+    const supabase = await createClient();
     const data = await req.json();
     const { projectId, consultantId, date, modality, checkInTime, checkOutTime, areasVisited, peopleMet, description, fileUrls } = data;
 
@@ -13,38 +14,39 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Use the provided date or fallback to today
     const baseDate = date ? new Date(date + "T00:00:00") : new Date();
-    
+
     const [inHours, inMins] = checkInTime.split(':');
     const [outHours, outMins] = checkOutTime.split(':');
-    
+
     const checkInDate = new Date(baseDate);
     checkInDate.setHours(parseInt(inHours), parseInt(inMins), 0, 0);
 
     const checkOutDate = new Date(baseDate);
     checkOutDate.setHours(parseInt(outHours), parseInt(outMins), 0, 0);
 
-    // Parse areas and description together
-    const areasData = JSON.stringify([areasVisited, description]);
-    const peopleData = JSON.stringify([peopleMet]);
+    const areasData = [areasVisited, description];
+    const peopleData = [peopleMet];
 
-    const timeLog = await prisma.timeLog.create({
-      data: {
-        projectId,
-        consultantId,
-        date: baseDate,
-        checkInTime: checkInDate,
-        checkOutTime: checkOutDate,
+    const { data: timeLog, error } = await supabase
+      .from("time_logs")
+      .insert({
+        project_id: projectId,
+        consultant_id: consultantId,
+        date: baseDate.toISOString().split('T')[0],
+        check_in_time: checkInDate.toISOString(),
+        check_out_time: checkOutDate.toISOString(),
         modality,
-        areasVisited: areasData,
-        peopleMet: peopleData,
-        evidenceUrls: JSON.stringify(fileUrls || []),
-      },
-    });
+        areas_visited: areasData,
+        people_met: peopleData,
+        evidence_urls: fileUrls || [],
+      })
+      .select("id")
+      .single();
+
+    if (error) throw error;
 
     return NextResponse.json({ success: true, logId: timeLog.id });
-
   } catch (error) {
     console.error("Jornada Error:", error);
     return NextResponse.json(

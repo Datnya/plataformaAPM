@@ -116,7 +116,7 @@ export default function ConsultorProyectos() {
     try {
       const res = await fetch(`/api/consultant/projects?consultantId=${userId}`);
       const data = await res.json();
-      setProjects(data.projects || []);
+      setProjects(Array.isArray(data.projects) ? data.projects : []);
       
       if (idToKeepOpened) {
          const proj = data.projects.find((p: any) => p.id === idToKeepOpened);
@@ -172,7 +172,7 @@ export default function ConsultorProyectos() {
       const res = await fetch(`/api/consultant/reports?consultantId=${userId}&projectId=${projectId}`);
       if (res.ok) {
         const data = await res.json();
-        setProjectReports(data.reports || []);
+        setProjectReports(Array.isArray(data.reports) ? data.reports : []);
       }
     } catch {
       setProjectReports([]);

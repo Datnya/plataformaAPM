@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import prisma from "@/lib/prisma";
+import { createClient } from "@/lib/supabase/server";
 
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const p = await params;
-    const { id } = p;
-    await prisma.adminNote.delete({
-      where: { id }
-    });
+    const supabase = await createClient();
+    const { id } = await params;
+
+    const { error } = await supabase.from("admin_notes").delete().eq("id", id);
+    if (error) throw error;
+
     return NextResponse.json({ success: true });
   } catch (error) {
     return NextResponse.json({ error: "Error deleting note" }, { status: 500 });
@@ -16,20 +17,22 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const p = await params;
-    const { id } = p;
+    const supabase = await createClient();
+    const { id } = await params;
     const body = await req.json();
     const { date, description, consultantId } = body;
 
-    const note = await prisma.adminNote.update({
-      where: { id },
-      data: {
-        date: new Date(date + "T00:00:00"),
-        description: JSON.stringify({ consultantId, description })
-      }
-    });
+    const { error } = await supabase
+      .from("admin_notes")
+      .update({
+        date: new Date(date + "T00:00:00").toISOString(),
+        description: JSON.stringify({ consultantId, description }),
+      })
+      .eq("id", id);
 
-    return NextResponse.json({ success: true, note: { id: note.id, date, description } });
+    if (error) throw error;
+
+    return NextResponse.json({ success: true, note: { id, date, description } });
   } catch (error) {
     return NextResponse.json({ error: "Error updating note" }, { status: 500 });
   }

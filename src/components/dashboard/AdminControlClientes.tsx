@@ -73,7 +73,7 @@ export default function AdminControlClientes() {
     try {
       const res = await fetch("/api/admin/clients");
       const data = await res.json();
-      setClients(data.clients || []);
+      setClients(Array.isArray(data.clients) ? data.clients : []);
     } catch {
       setClients([]);
     }
@@ -85,8 +85,8 @@ export default function AdminControlClientes() {
     setDetailLoading(true);
     try {
       const res = await fetch(`/api/admin/clients?clientId=${client.id}`);
-      const data = await res.json();
-      setDetail(data);
+      const detailData = await res.json();
+      setDetail(detailData && !detailData.error ? detailData : null);
     } catch {
       setDetail(null);
     }

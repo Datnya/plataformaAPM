@@ -1,56 +1,64 @@
 export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
-import prisma from "@/lib/prisma";
+import { createClient } from "@/lib/supabase/server";
 
 export async function GET() {
   try {
-    const consultants = await prisma.user.findMany({
-      where: { role: "CONSULTOR" },
-      include: {
-        projects: {
-          include: {
-            goals: true
-          }
-        }
-      }
-    });
+    const supabase = await createClient();
 
-    const transformed = consultants.map(c => {
+    // Get consultants
+    const { data: consultants, error: consError } = await supabase
+      .from("users")
+      .select("id, name, status")
+      .eq("role", "CONSULTOR");
+
+    if (consError) throw consError;
+
+    // Get projects with goals for each consultant
+    const { data: projects, error: projError } = await supabase
+      .from("projects")
+      .select("id, name, consultant_id, goals ( id, status )");
+
+    if (projError) throw projError;
+
+    const transformed = (consultants || []).map((c: any) => {
+      const consProjects = (projects || []).filter((p: any) => p.consultant_id === c.id);
       let totalGoals = 0;
       let completedGoals = 0;
-      
-      c.projects.forEach(p => {
-        totalGoals += p.goals.length;
-        completedGoals += p.goals.filter(g => g.status === "COMPLETADO").length;
+
+      consProjects.forEach((p: any) => {
+        const goals = p.goals || [];
+        totalGoals += goals.length;
+        completedGoals += goals.filter((g: any) => g.status === "COMPLETADO").length;
       });
 
       return {
         id: c.id,
         name: c.name,
         status: c.status,
-        projects: c.projects.length,
+        projects: consProjects.length,
         totalGoals,
-        completedGoals
+        completedGoals,
       };
     });
 
-    // Also get quick stats
-    const totalProjects = await prisma.project.count();
-    const totalClients = await prisma.user.count({ where: { role: "CLIENTE", status: "ACTIVO" } });
-    const totalConsultants = await prisma.user.count({ where: { role: "CONSULTOR", status: "ACTIVO" } });
-    const newProspects = await prisma.prospect.count({ where: { status: "NUEVO" } });
+    // Quick stats
+    const { count: totalProjects } = await supabase.from("projects").select("id", { count: "exact", head: true });
+    const { count: totalClients } = await supabase.from("users").select("id", { count: "exact", head: true }).eq("role", "CLIENTE").eq("status", "ACTIVO");
+    const { count: totalConsultants } = await supabase.from("users").select("id", { count: "exact", head: true }).eq("role", "CONSULTOR").eq("status", "ACTIVO");
+    const { count: newProspects } = await supabase.from("prospects").select("id", { count: "exact", head: true }).eq("status", "NUEVO");
 
     return NextResponse.json({
       consultants: transformed,
       stats: {
-        totalProjects,
-        totalConsultants,
-        totalClients,
-        newProspects
-      }
+        totalProjects: totalProjects || 0,
+        totalConsultants: totalConsultants || 0,
+        totalClients: totalClients || 0,
+        newProspects: newProspects || 0,
+      },
     });
-
   } catch (error) {
+    console.error("Admin dashboard error:", error);
     return NextResponse.json({ error: "Error al obtener stats del admin" }, { status: 500 });
   }
 }

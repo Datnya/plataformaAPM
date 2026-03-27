@@ -64,7 +64,7 @@ export default function AdminCalendario() {
     setLoading(true);
     const res = await fetch(`/api/calendar?projectId=${selectedProjectId}`);
     const data = await res.json();
-    setActivities(data.activities || []);
+    setActivities(Array.isArray(data.activities) ? data.activities : []);
     setLoading(false);
   };
 
@@ -73,7 +73,7 @@ export default function AdminCalendario() {
     try {
       const res = await fetch("/api/admin/notes");
       const data = await res.json();
-      setAdminNotes(data.notes || []);
+      setAdminNotes(Array.isArray(data.notes) ? data.notes : []);
     } catch { setAdminNotes([]); }
     setNotesLoading(false);
   };
@@ -86,7 +86,7 @@ export default function AdminCalendario() {
       setTitle(act.title);
       setDescription(act.description);
       setDate(new Date(act.date).toISOString().split('T')[0]);
-      setEmailList(JSON.parse(act.emails || "[]"));
+      setEmailList(Array.isArray(act.emails) ? act.emails : JSON.parse(act.emails || "[]"));
     } else {
       setEditId(null);
       setTitle("");
@@ -147,14 +147,15 @@ export default function AdminCalendario() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          emails: JSON.parse(act.emails),
+          emails: Array.isArray(act.emails) ? act.emails : JSON.parse(act.emails || "[]"),
           date: act.date,
           description: act.description || act.title
         })
       });
       const data = await res.json();
       if (res.ok) {
-        setNotificationMsg("¡Correo enviado exitosamente a: " + JSON.parse(act.emails).join(", ") + "!");
+        const parsedEmails = Array.isArray(act.emails) ? act.emails : JSON.parse(act.emails || "[]");
+        setNotificationMsg("¡Correo enviado exitosamente a: " + parsedEmails.join(", ") + "!");
       } else {
         setNotificationMsg("Error: " + data.error);
       }
@@ -288,7 +289,7 @@ export default function AdminCalendario() {
                 </thead>
                 <tbody>
                   {activities.map(act => {
-                    const emailListAct = JSON.parse(act.emails || "[]");
+                    const emailListAct = Array.isArray(act.emails) ? act.emails : JSON.parse(act.emails || "[]");
                     return (
                       <tr key={act.id} className="border-b border-border-light hover:bg-surface/30">
                         <td className="py-4 px-6 align-top">

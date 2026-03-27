@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import prisma from "@/lib/prisma";
+import { createClient } from "@/lib/supabase/server";
 
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const p = await params;
-    const { id } = p;
-    await prisma.timeLog.delete({
-      where: { id }
-    });
+    const supabase = await createClient();
+    const { id } = await params;
+
+    const { error } = await supabase.from("time_logs").delete().eq("id", id);
+    if (error) throw error;
+
     return NextResponse.json({ success: true });
   } catch (error) {
     return NextResponse.json({ error: "Error deleting timeLog" }, { status: 500 });
@@ -16,38 +17,50 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const p = await params;
-    const { id } = p;
+    const supabase = await createClient();
+    const { id } = await params;
     const body = await req.json();
     const { checkInTime, checkOutTime, areasVisited, description, peopleMet, modality } = body;
 
-    const existingLog = await prisma.timeLog.findUnique({ where: { id } });
-    if (!existingLog) return NextResponse.json({ error: "Not found" }, { status: 404 });
+    // Get existing log
+    const { data: existingLog, error: fetchError } = await supabase
+      .from("time_logs")
+      .select("*")
+      .eq("id", id)
+      .single();
 
-    const checkInDate = new Date(existingLog.checkInTime);
+    if (fetchError || !existingLog) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
+
+    const checkInDate = new Date(existingLog.check_in_time);
     if (checkInTime) {
       const [inHours, inMins] = checkInTime.split(':');
       checkInDate.setHours(parseInt(inHours), parseInt(inMins), 0, 0);
     }
-    const checkOutDate = new Date(existingLog.checkOutTime || existingLog.checkInTime);
+    const checkOutDate = new Date(existingLog.check_out_time || existingLog.check_in_time);
     if (checkOutTime) {
       const [outHours, outMins] = checkOutTime.split(':');
       checkOutDate.setHours(parseInt(outHours), parseInt(outMins), 0, 0);
     }
 
-    const updatedAreasData = areasVisited !== undefined ? JSON.stringify([areasVisited, description || ""]) : existingLog.areasVisited;
-    const updatedPeopleData = peopleMet !== undefined ? JSON.stringify([peopleMet]) : existingLog.peopleMet;
+    const updatedAreasData = areasVisited !== undefined ? [areasVisited, description || ""] : existingLog.areas_visited;
+    const updatedPeopleData = peopleMet !== undefined ? [peopleMet] : existingLog.people_met;
 
-    const updatedLog = await prisma.timeLog.update({
-      where: { id },
-      data: {
-        checkInTime: checkInDate,
-        checkOutTime: checkOutDate,
-        areasVisited: updatedAreasData,
-        peopleMet: updatedPeopleData,
-        modality: modality || existingLog.modality
-      }
-    });
+    const { data: updatedLog, error } = await supabase
+      .from("time_logs")
+      .update({
+        check_in_time: checkInDate.toISOString(),
+        check_out_time: checkOutDate.toISOString(),
+        areas_visited: updatedAreasData,
+        people_met: updatedPeopleData,
+        modality: modality || existingLog.modality,
+      })
+      .eq("id", id)
+      .select()
+      .single();
+
+    if (error) throw error;
 
     return NextResponse.json({ success: true, log: updatedLog });
   } catch (error) {

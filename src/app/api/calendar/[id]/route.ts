@@ -1,22 +1,26 @@
 import { NextRequest, NextResponse } from "next/server";
-import prisma from "@/lib/prisma";
+import { createClient } from "@/lib/supabase/server";
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const p = await params;
-    const { id } = p;
+    const supabase = await createClient();
+    const { id } = await params;
     const body = await req.json();
 
-    const allowedUpdates: any = {};
-    if (body.title) allowedUpdates.title = body.title;
-    if (body.description !== undefined) allowedUpdates.description = body.description;
-    if (body.date) allowedUpdates.date = new Date(body.date);
-    if (body.emails) allowedUpdates.emails = JSON.stringify(body.emails);
+    const updateData: any = {};
+    if (body.title) updateData.title = body.title;
+    if (body.description !== undefined) updateData.description = body.description;
+    if (body.date) updateData.date = new Date(body.date).toISOString();
+    if (body.emails) updateData.emails = Array.isArray(body.emails) ? body.emails : JSON.parse(body.emails);
 
-    const updated = await prisma.activity.update({
-      where: { id },
-      data: allowedUpdates
-    });
+    const { data: updated, error } = await supabase
+      .from("activities")
+      .update(updateData)
+      .eq("id", id)
+      .select()
+      .single();
+
+    if (error) throw error;
 
     return NextResponse.json({ success: true, activity: updated });
   } catch (error) {
@@ -26,10 +30,11 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const p = await params;
-    const { id } = p;
+    const supabase = await createClient();
+    const { id } = await params;
 
-    await prisma.activity.delete({ where: { id } });
+    const { error } = await supabase.from("activities").delete().eq("id", id);
+    if (error) throw error;
 
     return NextResponse.json({ success: true });
   } catch (error) {

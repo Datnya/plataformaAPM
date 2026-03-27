@@ -88,7 +88,7 @@ export default function AdminProyectos() {
       // Fetch full project with goals, timeLogs, clientUsers
       const pRes = await fetch(`/api/projects/${projectId}`);
       const pData = await pRes.json();
-      setDetailProject(pData);
+      setDetailProject(pData && !pData.error ? pData : null);
 
       // Fetch reports if consultant is assigned
       if (consId) {

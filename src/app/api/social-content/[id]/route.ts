@@ -1,26 +1,29 @@
 import { NextRequest, NextResponse } from "next/server";
-import prisma from "@/lib/prisma";
+import { createClient } from "@/lib/supabase/server";
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const p = await params;
+    const supabase = await createClient();
+    const { id } = await params;
     const body = await req.json();
     const { networks, contentType, format, publishDate, status, title, description } = body;
 
-    const parsedNetworks = Array.isArray(networks) ? JSON.stringify(networks) : networks;
-
-    const updated = await prisma.socialContent.update({
-      where: { id: p.id },
-      data: {
-        networks: parsedNetworks,
-        contentType,
+    const { data: updated, error } = await supabase
+      .from("social_contents")
+      .update({
+        networks: Array.isArray(networks) ? networks : JSON.parse(networks || "[]"),
+        content_type: contentType,
         format,
-        publishDate: new Date(publishDate),
+        publish_date: new Date(publishDate).toISOString(),
         status,
         title,
-        description
-      }
-    });
+        description,
+      })
+      .eq("id", id)
+      .select()
+      .single();
+
+    if (error) throw error;
 
     return NextResponse.json({ success: true, content: updated });
   } catch (error) {
@@ -30,8 +33,12 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const p = await params;
-    await prisma.socialContent.delete({ where: { id: p.id } });
+    const supabase = await createClient();
+    const { id } = await params;
+
+    const { error } = await supabase.from("social_contents").delete().eq("id", id);
+    if (error) throw error;
+
     return NextResponse.json({ success: true });
   } catch (error) {
     return NextResponse.json({ error: "Error deleting content" }, { status: 500 });

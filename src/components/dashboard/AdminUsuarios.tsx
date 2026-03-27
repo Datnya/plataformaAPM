@@ -37,10 +37,21 @@ export default function AdminUsuarios() {
 
   const fetchUsers = async () => {
     setLoading(true);
-    const res = await fetch("/api/admin/users");
-    const data = await res.json();
-    setUsers(data);
-    setLoading(false);
+    try {
+      const res = await fetch("/api/admin/users");
+      const data = await res.json();
+      if (res.ok && Array.isArray(data)) {
+        setUsers(data);
+      } else {
+        setUsers([]);
+        console.error("API error:", data.error || data);
+      }
+    } catch (err) {
+      console.error("Fetch error:", err);
+      setUsers([]);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {

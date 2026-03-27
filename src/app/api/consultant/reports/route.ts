@@ -1,37 +1,37 @@
 export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
-import prisma from "@/lib/prisma";
+import { createClient } from "@/lib/supabase/server";
 
 export async function GET(req: Request) {
   try {
+    const supabase = await createClient();
     const { searchParams } = new URL(req.url);
     const consultantId = searchParams.get("consultantId");
     const projectId = searchParams.get("projectId");
-    
+
     if (!consultantId) {
-       return NextResponse.json({ error: "Missing consultantId" }, { status: 400 });
+      return NextResponse.json({ error: "Missing consultantId" }, { status: 400 });
     }
 
-    const notes = await prisma.adminNote.findMany({
-      where: {
-         title: "CONS_REPORT",
-      },
-      orderBy: { createdAt: "desc" }
-    });
+    // Reports are stored as admin_notes with title = 'CONS_REPORT'
+    const { data: notes, error } = await supabase
+      .from("admin_notes")
+      .select("*")
+      .eq("title", "CONS_REPORT")
+      .order("created_at", { ascending: false });
 
-    const userReports = notes.map(n => {
-       try {
-         const data = JSON.parse(n.description || "{}");
-         if (data.consultantId === consultantId) {
-            if (projectId && data.projectId !== projectId) return null;
-            return {
-               id: n.id,
-               ...data
-            };
-         }
-       } catch(e) {}
-       return null;
-    }).filter(n => n !== null);
+    if (error) throw error;
+
+    const userReports = (notes || []).map((n: any) => {
+      try {
+        const data = JSON.parse(n.description || "{}");
+        if (data.consultantId === consultantId) {
+          if (projectId && data.projectId !== projectId) return null;
+          return { id: n.id, ...data };
+        }
+      } catch (e) {}
+      return null;
+    }).filter((n: any) => n !== null);
 
     return NextResponse.json({ reports: userReports });
   } catch (error) {
@@ -41,16 +41,21 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
+    const supabase = await createClient();
     const body = await req.json();
     const { consultantId, reportData } = body;
 
-    const newReport = await prisma.adminNote.create({
-      data: {
+    const { data: newReport, error } = await supabase
+      .from("admin_notes")
+      .insert({
         title: "CONS_REPORT",
-        date: new Date(),
-        description: JSON.stringify({ consultantId, ...reportData })
-      }
-    });
+        date: new Date().toISOString(),
+        description: JSON.stringify({ consultantId, ...reportData }),
+      })
+      .select("id")
+      .single();
+
+    if (error) throw error;
 
     return NextResponse.json({ success: true, report: { id: newReport.id, ...reportData } });
   } catch (error) {

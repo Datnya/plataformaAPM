@@ -1,12 +1,32 @@
 import { NextRequest, NextResponse } from "next/server";
-import prisma from "@/lib/prisma";
+import { createClient } from "@/lib/supabase/server";
 
 export async function GET() {
   try {
-    const contents = await prisma.socialContent.findMany({
-      orderBy: { publishDate: 'asc' }
-    });
-    return NextResponse.json(contents);
+    const supabase = await createClient();
+
+    const { data: contents, error } = await supabase
+      .from("social_contents")
+      .select("*")
+      .order("publish_date", { ascending: true });
+
+    if (error) throw error;
+
+    // Transform to camelCase
+    const transformed = (contents || []).map((c: any) => ({
+      id: c.id,
+      networks: c.networks, // already JSONB, comes as native array/object
+      contentType: c.content_type,
+      format: c.format,
+      publishDate: c.publish_date,
+      status: c.status,
+      title: c.title,
+      description: c.description,
+      createdAt: c.created_at,
+      updatedAt: c.updated_at,
+    }));
+
+    return NextResponse.json(transformed);
   } catch (error) {
     return NextResponse.json({ error: "Error fetching content" }, { status: 500 });
   }
@@ -14,26 +34,29 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
+    const supabase = await createClient();
     const body = await req.json();
     const { networks, contentType, format, publishDate, status, title, description } = body;
 
-    const parsedNetworks = Array.isArray(networks) ? JSON.stringify(networks) : networks;
-
-    const newContent = await prisma.socialContent.create({
-      data: {
-        networks: parsedNetworks,
-        contentType,
+    const { data: newContent, error } = await supabase
+      .from("social_contents")
+      .insert({
+        networks: Array.isArray(networks) ? networks : JSON.parse(networks || "[]"),
+        content_type: contentType,
         format,
-        publishDate: new Date(publishDate),
+        publish_date: new Date(publishDate).toISOString(),
         status: status || "PENDIENTE",
         title,
-        description
-      }
-    });
+        description,
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
 
     return NextResponse.json({ success: true, content: newContent });
   } catch (error: any) {
     console.error("Error creating social content:", error);
-    return NextResponse.json({ error: error?.message || "Error creating content", details: String(error) }, { status: 500 });
+    return NextResponse.json({ error: error?.message || "Error creating content" }, { status: 500 });
   }
 }

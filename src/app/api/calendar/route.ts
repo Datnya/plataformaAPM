@@ -1,22 +1,38 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
-import prisma from "@/lib/prisma";
+import { createClient } from "@/lib/supabase/server";
 
 export async function GET(req: NextRequest) {
   try {
+    const supabase = await createClient();
     const { searchParams } = new URL(req.url);
-    const projectId = searchParams.get('projectId');
+    const projectId = searchParams.get("projectId");
 
     if (!projectId) {
-       return NextResponse.json({ error: "projectId is required" }, { status: 400 });
+      return NextResponse.json({ error: "projectId is required" }, { status: 400 });
     }
 
-    const activities = await prisma.activity.findMany({
-      where: { projectId },
-      orderBy: { date: "asc" }
-    });
+    const { data: activities, error } = await supabase
+      .from("activities")
+      .select("*")
+      .eq("project_id", projectId)
+      .order("date", { ascending: true });
 
-    return NextResponse.json({ activities });
+    if (error) throw error;
+
+    // Transform to camelCase
+    const transformed = (activities || []).map((a: any) => ({
+      id: a.id,
+      projectId: a.project_id,
+      title: a.title,
+      description: a.description,
+      date: a.date,
+      emails: a.emails, // already JSONB
+      createdAt: a.created_at,
+      updatedAt: a.updated_at,
+    }));
+
+    return NextResponse.json({ activities: transformed });
   } catch (error) {
     return NextResponse.json({ error: "Error retrieving activities" }, { status: 500 });
   }
@@ -24,21 +40,26 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
+    const supabase = await createClient();
     const { projectId, title, description, date, emails } = await req.json();
 
     if (!projectId || !title || !date || !emails) {
-       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+      return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
-    const newActivity = await prisma.activity.create({
-      data: {
-        projectId,
+    const { data: newActivity, error } = await supabase
+      .from("activities")
+      .insert({
+        project_id: projectId,
         title,
         description,
-        date: new Date(date),
-        emails: JSON.stringify(emails)
-      }
-    });
+        date: new Date(date).toISOString(),
+        emails: Array.isArray(emails) ? emails : JSON.parse(emails),
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
 
     return NextResponse.json({ success: true, activity: newActivity });
   } catch (error) {

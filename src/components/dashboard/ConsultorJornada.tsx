@@ -40,7 +40,7 @@ export default function ConsultorJornada() {
     try {
       const res = await fetch(`/api/consultant/projects?consultantId=${userId}`);
       const data = await res.json();
-      setProjects(data.projects || []);
+      setProjects(Array.isArray(data.projects) ? data.projects : []);
       if (data.projects && data.projects.length > 0) {
         setProjectId(data.projects[0].id);
       }

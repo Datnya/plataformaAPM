@@ -1,21 +1,25 @@
 import { NextRequest, NextResponse } from "next/server";
-import prisma from "@/lib/prisma";
+import { createClient } from "@/lib/supabase/server";
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const p = await params;
-    const { id } = p;
+    const supabase = await createClient();
+    const { id } = await params;
     const body = await req.json();
 
-    const allowedUpdates: any = {};
-    if (body.description) allowedUpdates.description = body.description;
-    if (body.status) allowedUpdates.status = body.status;
-    if (body.dueDate !== undefined) allowedUpdates.dueDate = body.dueDate ? new Date(body.dueDate) : null;
+    const updateData: any = {};
+    if (body.description) updateData.description = body.description;
+    if (body.status) updateData.status = body.status;
+    if (body.dueDate !== undefined) updateData.due_date = body.dueDate ? new Date(body.dueDate).toISOString() : null;
 
-    const updated = await prisma.goal.update({
-      where: { id },
-      data: allowedUpdates
-    });
+    const { data: updated, error } = await supabase
+      .from("goals")
+      .update(updateData)
+      .eq("id", id)
+      .select()
+      .single();
+
+    if (error) throw error;
 
     return NextResponse.json({ success: true, goal: updated });
   } catch (error) {
@@ -25,10 +29,11 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const p = await params;
-    const { id } = p;
+    const supabase = await createClient();
+    const { id } = await params;
 
-    await prisma.goal.delete({ where: { id } });
+    const { error } = await supabase.from("goals").delete().eq("id", id);
+    if (error) throw error;
 
     return NextResponse.json({ success: true });
   } catch (error) {

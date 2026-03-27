@@ -1,46 +1,53 @@
 import { NextRequest, NextResponse } from "next/server";
-import prisma from "@/lib/prisma";
+import { createClient } from "@/lib/supabase/server";
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const p = await params;
-    const { id } = p;
+    const supabase = await createClient();
+    const { id } = await params;
     const { status } = await req.json();
 
     if (!status || typeof status !== "string") {
       return NextResponse.json({ error: "Datos inválidos." }, { status: 400 });
     }
 
-    // Update goal
-    const updatedGoal = await prisma.goal.update({
-      where: { id },
-      data: { status },
-    });
+    // Update goal status
+    const { data: updatedGoal, error } = await supabase
+      .from("goals")
+      .update({ status })
+      .eq("id", id)
+      .select("id, project_id, description, type, status, due_date")
+      .single();
 
-    const projectId = updatedGoal.projectId;
+    if (error) throw error;
 
-    // Recalculate progress: (Objetivos Completados / Total de Objetivos) * 100
-    const allProjectGoals = await prisma.goal.findMany({
-      where: { projectId },
-    });
+    const projectId = updatedGoal.project_id;
 
-    const total = allProjectGoals.length;
-    const completed = allProjectGoals.filter((g) => g.status === 'COMPLETADO').length;
+    // Recalculate progress
+    const { data: allGoals, error: goalsError } = await supabase
+      .from("goals")
+      .select("id, status")
+      .eq("project_id", projectId);
+
+    if (goalsError) throw goalsError;
+
+    const total = (allGoals || []).length;
+    const completed = (allGoals || []).filter((g: any) => g.status === "COMPLETADO").length;
     const percentage = total === 0 ? 0 : Math.round((completed / total) * 100);
 
     return NextResponse.json({
       success: true,
-      goal: updatedGoal,
+      goal: {
+        ...updatedGoal,
+        projectId: updatedGoal.project_id,
+        dueDate: updatedGoal.due_date,
+      },
       projectProgress: percentage,
       completed,
-      total
+      total,
     });
-
   } catch (error) {
     console.error("Goal Update Error:", error);
-    return NextResponse.json(
-      { error: "Error al actualizar el objetivo y recalcular progreso." },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Error al actualizar el objetivo." }, { status: 500 });
   }
 }
