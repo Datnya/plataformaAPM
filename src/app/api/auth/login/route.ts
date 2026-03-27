@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import prisma from "@/lib/prisma";
-import bcrypt from "bcryptjs";
+import { createClient } from "@/lib/supabase/server";
 
 export async function POST(req: NextRequest) {
   try {
@@ -14,56 +12,73 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const user = await prisma.user.findUnique({
-      where: { email },
-    });
+    const supabase = await createClient();
 
-    if (!user) {
-      return NextResponse.json(
-        { error: "Credenciales inválidas. Verifica tu correo y contraseña." },
-        { status: 401 }
-      );
-    }
+    // 1. Sign in with Supabase Auth
+    const { data: authData, error: authError } =
+      await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
 
-    if (user.status === "INACTIVO") {
-      return NextResponse.json(
-        { error: "Tu cuenta ha sido suspendida. Contacta con el administrador." },
-        { status: 403 }
-      );
-    }
+    if (authError) {
+      console.error("Supabase Auth Error:", authError.message);
 
-    // Since we may not have passwords seeded for demo, mock it:
-    if (user.password) {
-      const isValid = await bcrypt.compare(password, user.password);
-      if (!isValid) {
+      if (authError.message.includes("Invalid login credentials")) {
         return NextResponse.json(
           { error: "Credenciales inválidas. Verifica tu correo y contraseña." },
           { status: 401 }
         );
       }
-    } else {
-      // For demo accounts without password seeded
-      if (password !== "123456") {
-          return NextResponse.json(
-            { error: "Contraseña de demo incorrecta. (Usa: 123456)" },
-            { status: 401 }
-          );
-      }
+
+      return NextResponse.json(
+        { error: "Error de autenticación. Intenta de nuevo." },
+        { status: 401 }
+      );
     }
 
-    const cookieStore = await cookies();
-    cookieStore.set("auth_role", user.role, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      maxAge: 60 * 60 * 24, // 1 day
-      path: "/",
-    });
+    if (!authData.user) {
+      return NextResponse.json(
+        { error: "No se pudo autenticar el usuario." },
+        { status: 401 }
+      );
+    }
 
+    // 2. Fetch the user profile from public.users (has role, name, status)
+    const { data: profile, error: profileError } = await supabase
+      .from("users")
+      .select("id, email, name, role, status, company_id")
+      .eq("id", authData.user.id)
+      .single();
+
+    if (profileError || !profile) {
+      console.error("Profile Fetch Error:", profileError?.message);
+      return NextResponse.json(
+        { error: "No se encontró el perfil del usuario." },
+        { status: 404 }
+      );
+    }
+
+    // 3. Check if the user is active
+    if (profile.status === "INACTIVO") {
+      // Sign out the user since they shouldn't have access
+      await supabase.auth.signOut();
+      return NextResponse.json(
+        {
+          error:
+            "Tu cuenta ha sido suspendida. Contacta con el administrador.",
+        },
+        { status: 403 }
+      );
+    }
+
+    // 4. Return user data for the frontend context
     return NextResponse.json({
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      role: user.role,
+      id: profile.id,
+      name: profile.name,
+      email: profile.email,
+      role: profile.role,
+      companyId: profile.company_id,
     });
   } catch (error) {
     console.error("Login Error:", error);
