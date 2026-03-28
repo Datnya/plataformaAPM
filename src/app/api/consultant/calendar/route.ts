@@ -1,9 +1,14 @@
 export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { requireRole } from "@/lib/auth-guard";
+import { safeJsonParse } from "@/lib/utils";
 
 export async function GET(req: Request) {
   try {
+    const auth = await requireRole(["ADMIN", "CONSULTOR"]);
+    if ("error" in auth) return auth.error;
+
     const supabase = await createClient();
     const { searchParams } = new URL(req.url);
     const consultantId = searchParams.get("consultantId");
@@ -22,23 +27,25 @@ export async function GET(req: Request) {
     if (error) throw error;
 
     const userNotes = (notes || []).map((n: any) => {
-      try {
-        const data = JSON.parse(n.description || "{}");
-        if (data.consultantId === consultantId) {
-          return { id: n.id, date: n.date, description: data.description };
-        }
-      } catch (e) {}
+      const data = safeJsonParse<{ consultantId?: string; description?: string }>(n.description, {});
+      if (data.consultantId === consultantId) {
+        return { id: n.id, date: n.date, description: data.description };
+      }
       return null;
     }).filter((n: any) => n !== null);
 
     return NextResponse.json({ notes: userNotes });
   } catch (error) {
+    console.error("Consultant Calendar GET Error:", error);
     return NextResponse.json({ error: "Error fetching consultant notes" }, { status: 500 });
   }
 }
 
 export async function POST(req: Request) {
   try {
+    const auth = await requireRole(["ADMIN", "CONSULTOR"]);
+    if ("error" in auth) return auth.error;
+
     const supabase = await createClient();
     const body = await req.json();
     const { date, description, consultantId } = body;
@@ -57,6 +64,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ success: true, note: { id: newNote.id, date, description } });
   } catch (error) {
+    console.error("Consultant Calendar POST Error:", error);
     return NextResponse.json({ error: "Error creating consultant note" }, { status: 500 });
   }
 }

@@ -1,9 +1,13 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { requireRole } from "@/lib/auth-guard";
 
 export async function GET() {
   try {
+    const auth = await requireRole(["ADMIN"]);
+    if ("error" in auth) return auth.error;
+
     const supabase = await createClient();
     
     // Fetch users securely via RLS (Admin role will read all)
@@ -26,6 +30,9 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
+    const auth = await requireRole(["ADMIN"]);
+    if ("error" in auth) return auth.error;
+
     // INFO: To create actual Auth users securely via API, Supabase requires the Service Role Key.
     // The Anon Key will either reject the request or override the current admin's session.
     // Replace with `auth.admin.createUser()` once you add SUPABASE_SERVICE_ROLE_KEY to your .env
@@ -46,6 +53,7 @@ export async function POST(req: NextRequest) {
     }, { status: 501 });
 
   } catch (error) {
+    console.error("Admin Users POST Error:", error);
     return NextResponse.json({ error: "Error al crear usuario" }, { status: 500 });
   }
 }

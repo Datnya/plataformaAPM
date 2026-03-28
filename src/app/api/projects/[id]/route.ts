@@ -1,9 +1,13 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { requireRole } from "@/lib/auth-guard";
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const auth = await requireRole(["ADMIN", "CONSULTOR", "CLIENTE"]);
+    if ("error" in auth) return auth.error;
+
     const supabase = await createClient();
     const { id } = await params;
 
@@ -55,15 +59,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const auth = await requireRole(["ADMIN"]);
+    if ("error" in auth) return auth.error;
+
     const supabase = await createClient();
     const { id } = await params;
 
-    // Delete related records first (FK constraints)
-    await supabase.from("time_logs").delete().eq("project_id", id);
-    await supabase.from("goals").delete().eq("project_id", id);
-    await supabase.from("activities").delete().eq("project_id", id);
-    await supabase.from("project_client_users").delete().eq("project_id", id);
-
+    // Child records are removed automatically via ON DELETE CASCADE
     const { error } = await supabase.from("projects").delete().eq("id", id);
     if (error) throw error;
 
@@ -76,6 +78,9 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const auth = await requireRole(["ADMIN"]);
+    if ("error" in auth) return auth.error;
+
     const supabase = await createClient();
     const { id } = await params;
     const body = await req.json();

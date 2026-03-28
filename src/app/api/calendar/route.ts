@@ -1,9 +1,13 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { requireRole } from "@/lib/auth-guard";
 
 export async function GET(req: NextRequest) {
   try {
+    const auth = await requireRole(["ADMIN", "CONSULTOR", "CLIENTE"]);
+    if ("error" in auth) return auth.error;
+
     const supabase = await createClient();
     const { searchParams } = new URL(req.url);
     const projectId = searchParams.get("projectId");
@@ -34,12 +38,16 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ activities: transformed });
   } catch (error) {
+    console.error("Calendar GET Error:", error);
     return NextResponse.json({ error: "Error retrieving activities" }, { status: 500 });
   }
 }
 
 export async function POST(req: NextRequest) {
   try {
+    const auth = await requireRole(["ADMIN"]);
+    if ("error" in auth) return auth.error;
+
     const supabase = await createClient();
     const { projectId, title, description, date, emails } = await req.json();
 
@@ -63,6 +71,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ success: true, activity: newActivity });
   } catch (error) {
+    console.error("Calendar POST Error:", error);
     return NextResponse.json({ error: "Error creating activity" }, { status: 500 });
   }
 }

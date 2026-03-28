@@ -8,11 +8,11 @@ import {
   TrendingUp,
   Clock,
   Target,
-  CheckCircle2,
   Loader2,
   AlertCircle,
   ChevronRight
 } from "lucide-react";
+import { GOAL_STATUS_COLORS, GOAL_STATUS_LABELS, USER_STATUS_BADGE } from "@/lib/constants";
 
 interface ClientUser {
   id: string;
@@ -41,20 +41,6 @@ interface ProjectDetail {
   totalLogs: number;
 }
 
-const statusColors: Record<string, string> = {
-  PENDIENTE: "bg-yellow-100 text-yellow-700 border-yellow-200",
-  EN_PROCESO: "bg-blue-100 text-blue-700 border-blue-200",
-  REVISION: "bg-purple-100 text-purple-700 border-purple-200",
-  COMPLETADO: "bg-green-100 text-green-700 border-green-200",
-};
-
-const statusLabels: Record<string, string> = {
-  PENDIENTE: "Pendiente",
-  EN_PROCESO: "En Proceso",
-  REVISION: "Revisión",
-  COMPLETADO: "Completado",
-};
-
 export default function AdminControlClientes() {
   const { userRole } = useAuth();
 
@@ -74,7 +60,8 @@ export default function AdminControlClientes() {
       const res = await fetch("/api/admin/clients");
       const data = await res.json();
       setClients(Array.isArray(data.clients) ? data.clients : []);
-    } catch {
+    } catch (err) {
+      console.error("Error fetching clients:", err);
       setClients([]);
     }
     setLoading(false);
@@ -87,7 +74,8 @@ export default function AdminControlClientes() {
       const res = await fetch(`/api/admin/clients?clientId=${client.id}`);
       const detailData = await res.json();
       setDetail(detailData && !detailData.error ? detailData : null);
-    } catch {
+    } catch (err) {
+      console.error("Error fetching client detail:", err);
       setDetail(null);
     }
     setDetailLoading(false);
@@ -117,11 +105,7 @@ export default function AdminControlClientes() {
             <h1 className="text-2xl font-bold">{selectedClient.name}</h1>
             <p className="text-sm text-text-muted">{selectedClient.email}</p>
           </div>
-          <span className={`ml-auto text-xs font-bold px-3 py-1 rounded-full border ${
-            selectedClient.status === "ACTIVO"
-              ? "bg-green-50 border-green-200 text-green-700"
-              : "bg-gray-100 border-gray-200 text-gray-500"
-          }`}>
+          <span className={`ml-auto text-xs font-bold px-3 py-1 rounded-full border ${USER_STATUS_BADGE[selectedClient.status] || "bg-gray-100 border-gray-200 text-gray-500"}`}>
             {selectedClient.status}
           </span>
         </div>
@@ -214,8 +198,8 @@ export default function AdminControlClientes() {
                             </span>
                           </td>
                           <td className="py-3 px-4 text-center">
-                            <span className={`text-[10px] font-bold px-2 py-1 rounded border ${statusColors[goal.status] || "bg-gray-100 text-gray-600"}`}>
-                              {statusLabels[goal.status] || goal.status}
+                            <span className={`text-[10px] font-bold px-2 py-1 rounded border ${GOAL_STATUS_COLORS[goal.status] || "bg-gray-100 text-gray-600"}`}>
+                              {GOAL_STATUS_LABELS[goal.status] || goal.status}
                             </span>
                           </td>
                           <td className="py-3 px-4 text-right text-text-muted text-xs">
@@ -285,11 +269,7 @@ export default function AdminControlClientes() {
                 <ChevronRight size={18} className="text-text-light group-hover:text-primary transition-colors flex-shrink-0" />
               </div>
               <div className="mt-3 pt-3 border-t border-border-light">
-                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
-                  client.status === "ACTIVO"
-                    ? "bg-green-50 border-green-200 text-green-700"
-                    : "bg-gray-100 border-gray-200 text-gray-500"
-                }`}>
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${USER_STATUS_BADGE[client.status] || "bg-gray-100 border-gray-200 text-gray-500"}`}>
                   {client.status}
                 </span>
               </div>

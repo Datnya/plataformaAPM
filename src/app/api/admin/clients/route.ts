@@ -1,9 +1,13 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { requireRole } from "@/lib/auth-guard";
 
 export async function GET(req: NextRequest) {
   try {
+    const auth = await requireRole(["ADMIN"]);
+    if ("error" in auth) return auth.error;
+
     const supabase = await createClient();
     const { searchParams } = new URL(req.url);
     const clientId = searchParams.get("clientId");

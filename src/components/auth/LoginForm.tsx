@@ -4,6 +4,7 @@ import Image from "next/image";
 import { useState } from "react";
 import { useAuth, UserRole } from "@/context/AuthContext";
 import { Eye, EyeOff } from "lucide-react";
+import { LOGO_PATH } from "@/lib/constants";
 
 export default function LoginForm() {
   const { setIsAuthenticated, setUserRole, setUserName, setUserId } = useAuth();
@@ -53,7 +54,7 @@ export default function LoginForm() {
           {/* Logo */}
           <div className="flex justify-center mb-8">
             <Image
-              src="/imágenes/LOGO APM.png"
+              src={LOGO_PATH}
               alt="APM Group Logo"
               width={180}
               height={60}

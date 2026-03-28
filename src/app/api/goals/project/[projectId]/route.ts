@@ -1,9 +1,13 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { requireRole } from "@/lib/auth-guard";
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ projectId: string }> }) {
   try {
+    const auth = await requireRole(["ADMIN", "CONSULTOR", "CLIENTE"]);
+    if ("error" in auth) return auth.error;
+
     const supabase = await createClient();
     const { projectId } = await params;
 
@@ -26,6 +30,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ proj
 
     return NextResponse.json({ goals, progress, completed, total });
   } catch (error) {
+    console.error("Goals Project GET Error:", error);
     return NextResponse.json({ error: "Error al obtener objetivos del proyecto." }, { status: 500 });
   }
 }

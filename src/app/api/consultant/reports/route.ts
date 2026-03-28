@@ -1,9 +1,14 @@
 export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { requireRole } from "@/lib/auth-guard";
+import { safeJsonParse } from "@/lib/utils";
 
 export async function GET(req: Request) {
   try {
+    const auth = await requireRole(["ADMIN", "CONSULTOR"]);
+    if ("error" in auth) return auth.error;
+
     const supabase = await createClient();
     const { searchParams } = new URL(req.url);
     const consultantId = searchParams.get("consultantId");
@@ -23,24 +28,26 @@ export async function GET(req: Request) {
     if (error) throw error;
 
     const userReports = (notes || []).map((n: any) => {
-      try {
-        const data = JSON.parse(n.description || "{}");
-        if (data.consultantId === consultantId) {
-          if (projectId && data.projectId !== projectId) return null;
-          return { id: n.id, ...data };
-        }
-      } catch (e) {}
+      const data = safeJsonParse<Record<string, any>>(n.description, {});
+      if (data.consultantId === consultantId) {
+        if (projectId && data.projectId !== projectId) return null;
+        return { id: n.id, ...data };
+      }
       return null;
     }).filter((n: any) => n !== null);
 
     return NextResponse.json({ reports: userReports });
   } catch (error) {
+    console.error("Consultant Reports GET Error:", error);
     return NextResponse.json({ error: "Error fetching consultant reports" }, { status: 500 });
   }
 }
 
 export async function POST(req: Request) {
   try {
+    const auth = await requireRole(["ADMIN", "CONSULTOR"]);
+    if ("error" in auth) return auth.error;
+
     const supabase = await createClient();
     const body = await req.json();
     const { consultantId, reportData } = body;
@@ -59,6 +66,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ success: true, report: { id: newReport.id, ...reportData } });
   } catch (error) {
+    console.error("Consultant Reports POST Error:", error);
     return NextResponse.json({ error: "Error creating consultant report" }, { status: 500 });
   }
 }

@@ -1,9 +1,13 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { requireRole } from "@/lib/auth-guard";
 
 export async function GET() {
   try {
+    const auth = await requireRole(["ADMIN"]);
+    if ("error" in auth) return auth.error;
+
     const supabase = await createClient();
 
     const { data: prospects, error } = await supabase
@@ -34,12 +38,16 @@ export async function GET() {
 
     return NextResponse.json(transformed);
   } catch (error) {
+    console.error("Prospects GET Error:", error);
     return NextResponse.json({ error: "Error al obtener prospectos" }, { status: 500 });
   }
 }
 
 export async function POST(req: NextRequest) {
   try {
+    const auth = await requireRole(["ADMIN"]);
+    if ("error" in auth) return auth.error;
+
     const supabase = await createClient();
     const body = await req.json();
     const {

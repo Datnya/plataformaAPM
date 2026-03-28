@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import { useAuth } from "@/context/AuthContext";
+import { LOGO_PATH } from "@/lib/constants";
 
 export default function Navbar() {
   const { userName, userRole } = useAuth();
@@ -23,7 +24,7 @@ export default function Navbar() {
       {/* Logo */}
       <div className="flex items-center gap-3">
         <Image
-          src="/imágenes/LOGO APM.png"
+          src={LOGO_PATH}
           alt="APM Group Logo"
           width={120}
           height={40}

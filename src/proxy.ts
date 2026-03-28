@@ -1,26 +1,48 @@
-import { NextResponse } from 'next/server'
-import type { NextRequest } from 'next/server'
+import { createServerClient } from "@supabase/ssr";
+import { NextResponse, type NextRequest } from "next/server";
 
-export function proxy(request: NextRequest) {
-  const role = request.cookies.get('auth_role')?.value;
+export async function proxy(request: NextRequest) {
+  const response = NextResponse.next({
+    request: { headers: request.headers },
+  });
 
-  // Protect Admin APIs
-  if (request.nextUrl.pathname.startsWith('/api/admin')) {
-    if (role !== 'ADMIN') {
-      return NextResponse.json({ error: 'Unauthorized Access' }, { status: 403 })
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return request.cookies.getAll();
+        },
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value, options }) => {
+            request.cookies.set(name, value);
+            response.cookies.set(name, value, options);
+          });
+        },
+      },
+    }
+  );
+
+  // Refresh the session to keep it alive
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  // Protect API routes (except auth endpoints)
+  if (request.nextUrl.pathname.startsWith("/api/")) {
+    const isAuthRoute = request.nextUrl.pathname.startsWith("/api/auth/");
+    if (!isAuthRoute && !user) {
+      return NextResponse.json(
+        { error: "No autenticado. Inicia sesion primero." },
+        { status: 401 }
+      );
     }
   }
 
-  // Protect Calendar APIs (Admin only for now, per specs)
-  if (request.nextUrl.pathname.startsWith('/api/calendar') && request.method !== 'GET') {
-    if (role !== 'ADMIN') {
-      return NextResponse.json({ error: 'Unauthorized Access' }, { status: 403 })
-    }
-  }
-
-  return NextResponse.next()
+  return response;
 }
 
 export const config = {
-  matcher: ['/api/admin/:path*', '/api/calendar/:path*'],
-}
+  matcher: ["/api/:path*"],
+};

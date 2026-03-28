@@ -1,52 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { useAuth, UserRole } from "@/context/AuthContext";
-import {
-  LayoutDashboard,
-  Clock,
-  Target,
-  FileText,
-  ClipboardList,
-  FolderOpen,
-  Users,
-  FolderKanban,
-  Briefcase,
-  CalendarDays,
-  UserCheck,
-  LogOut,
-  Menu,
-  X,
-  Share2
-} from "lucide-react";
-
-interface NavItem {
-  label: string;
-  view: string;
-  icon: React.ReactNode;
-  roles: UserRole[];
-}
-
-const navItems: NavItem[] = [
-  { label: "Dashboard", view: "dashboard", icon: <LayoutDashboard size={18} strokeWidth={1.8} />, roles: ["ADMIN", "CONSULTOR", "CLIENTE"] },
-  { label: "Control de Proyectos", view: "proyectos-consultor", icon: <FolderKanban size={18} strokeWidth={1.8} />, roles: ["CONSULTOR"] },
-  { label: "Mi Jornada", view: "jornada", icon: <Clock size={18} strokeWidth={1.8} />, roles: ["CONSULTOR"] },
-  { label: "Mis Informes", view: "informes", icon: <FileText size={18} strokeWidth={1.8} />, roles: ["CONSULTOR"] },
-  { label: "Calendario", view: "calendario-consultor", icon: <CalendarDays size={18} strokeWidth={1.8} />, roles: ["CONSULTOR"] },
-  { label: "Inicio", view: "dashboard", icon: <LayoutDashboard size={18} strokeWidth={1.8} />, roles: ["CLIENTE"] },
-  { label: "Resumen del Proyecto", view: "proyecto", icon: <ClipboardList size={18} strokeWidth={1.8} />, roles: ["CLIENTE"] },
-  { label: "Evidencias e Informes", view: "evidencias", icon: <FolderOpen size={18} strokeWidth={1.8} />, roles: ["CLIENTE"] },
-  { label: "Gestión de Usuarios", view: "usuarios", icon: <Users size={18} strokeWidth={1.8} />, roles: ["ADMIN"] },
-  { label: "Proyectos", view: "proyectos", icon: <FolderKanban size={18} strokeWidth={1.8} />, roles: ["ADMIN"] },
-  { label: "Control de Clientes", view: "control-clientes", icon: <UserCheck size={18} strokeWidth={1.8} />, roles: ["ADMIN"] },
-  { label: "CRM Prospectos", view: "prospectos", icon: <Briefcase size={18} strokeWidth={1.8} />, roles: ["ADMIN"] },
-  { label: "Gestión de Redes", view: "redes", icon: <Share2 size={18} strokeWidth={1.8} />, roles: ["ADMIN"] },
-  { label: "Calendario APM", view: "calendario", icon: <CalendarDays size={18} strokeWidth={1.8} />, roles: ["ADMIN"] },
-];
+import { useAuth } from "@/context/AuthContext";
+import { navItems } from "@/lib/nav-items";
+import { LogOut, Menu, X } from "lucide-react";
 
 export default function MobileSidebar() {
   const [isOpen, setIsOpen] = useState(false);
-  const { userRole, currentView, setCurrentView, setIsAuthenticated } = useAuth();
+  const { userRole, currentView, setCurrentView, logout } = useAuth();
   const filteredItems = navItems.filter((item) => item.roles.includes(userRole));
 
   return (
@@ -108,8 +69,7 @@ export default function MobileSidebar() {
         <div className="p-4 border-t border-border">
           <button
             onClick={() => {
-              setIsAuthenticated(false);
-              setCurrentView("dashboard");
+              logout();
               setIsOpen(false);
             }}
             className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-danger hover:bg-danger/5 transition-colors"

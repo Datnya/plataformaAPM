@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { requireRole } from "@/lib/auth-guard";
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const auth = await requireRole(["ADMIN"]);
+    if ("error" in auth) return auth.error;
+
     const { id } = await params;
     const body = await req.json();
     const { status, name, password } = body;
@@ -45,6 +49,9 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const auth = await requireRole(["ADMIN"]);
+    if ("error" in auth) return auth.error;
+
     const { id } = await params;
     // Hard deleting a user requires deleting them from auth.users (which cascades to public.users).
     // Doing this requires auth.admin.deleteUser() with Service Role Key.
@@ -62,6 +69,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     
     return NextResponse.json({ error: "Funcionalidad pausada hasta tener Service Role." }, { status: 501 });
   } catch (error) {
+    console.error("Admin Users DELETE Error:", error);
     return NextResponse.json({ error: "No se pudo eliminar el usuario." }, { status: 400 });
   }
 }

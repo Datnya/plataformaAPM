@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { requireRole } from "@/lib/auth-guard";
 
 export async function POST(req: NextRequest) {
   try {
+    const auth = await requireRole(["ADMIN", "CONSULTOR"]);
+    if ("error" in auth) return auth.error;
+
     const supabase = await createClient();
     const data = await req.json();
     const { projectId, consultantId, date, modality, checkInTime, checkOutTime, areasVisited, peopleMet, description, fileUrls } = data;

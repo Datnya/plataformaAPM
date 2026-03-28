@@ -1,9 +1,13 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { requireRole } from "@/lib/auth-guard";
 
 export async function GET(req: NextRequest) {
   try {
+    const auth = await requireRole(["ADMIN"]);
+    if ("error" in auth) return auth.error;
+
     const supabase = await createClient();
     const { searchParams } = new URL(req.url);
     const consultantId = searchParams.get("consultantId");
@@ -35,12 +39,16 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json(goals);
   } catch (error) {
+    console.error("Admin Goals GET Error:", error);
     return NextResponse.json({ error: "Error retrieving goals" }, { status: 500 });
   }
 }
 
 export async function POST(req: NextRequest) {
   try {
+    const auth = await requireRole(["ADMIN"]);
+    if ("error" in auth) return auth.error;
+
     const supabase = await createClient();
     const { projectId, description, type, dueDate } = await req.json();
 
@@ -60,6 +68,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ success: true, goal: newGoal });
   } catch (error) {
+    console.error("Admin Goals POST Error:", error);
     return NextResponse.json({ error: "Error creating goal" }, { status: 500 });
   }
 }

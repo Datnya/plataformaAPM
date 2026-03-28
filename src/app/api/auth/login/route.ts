@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 
 export async function POST(req: NextRequest) {
@@ -62,7 +61,6 @@ export async function POST(req: NextRequest) {
 
     // 3. Check if the user is active
     if (profile.status === "INACTIVO") {
-      // Sign out the user since they shouldn't have access
       await supabase.auth.signOut();
       return NextResponse.json(
         {
@@ -73,16 +71,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 4. Set the role cookie for backward compatibility
-    const cookieStore = await cookies();
-    cookieStore.set("auth_role", profile.role, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      maxAge: 60 * 60 * 24, // 1 day
-      path: "/",
-    });
-
-    // 5. Return user data for the frontend context
+    // 4. Return user data (session is managed by Supabase cookies)
     return NextResponse.json({
       id: profile.id,
       name: profile.name,
