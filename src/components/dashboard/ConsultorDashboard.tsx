@@ -48,12 +48,14 @@ export default function ConsultorDashboard() {
   const fetchDashboardData = async () => {
     setLoading(true);
     try {
-      // Fetch projects (includes goals + timeLogs)
-      const projRes = await fetch(`/api/consultant/projects?consultantId=${userId}`);
-      const projData = await projRes.json();
-      const projects: ProjectData[] = projData.projects || [];
+      // All three fetches in parallel — ~3× faster than sequential awaits
+      const [projData, repData, calData] = await Promise.all([
+        fetch(`/api/consultant/projects?consultantId=${userId}`).then((r) => r.json()),
+        fetch(`/api/consultant/reports?consultantId=${userId}`).then((r) => r.json()),
+        fetch(`/api/consultant/calendar?consultantId=${userId}`).then((r) => r.json()),
+      ]);
 
-      // Calculate global totals from all projects
+      const projects: ProjectData[] = projData.projects || [];
       let hours = 0;
       let goals = 0;
       let completed = 0;
@@ -66,22 +68,12 @@ export default function ConsultorDashboard() {
       setTotalGoals(goals);
       setCompletedGoals(completed);
       setGlobalProgress(goals === 0 ? 0 : Math.round((completed / goals) * 100));
-
-      // Fetch reports count
-      const repRes = await fetch(`/api/consultant/reports?consultantId=${userId}`);
-      const repData = await repRes.json();
       setTotalReports((repData.reports || []).length);
 
-      // Fetch calendar activities (upcoming)
-      const calRes = await fetch(`/api/consultant/calendar?consultantId=${userId}`);
-      const calData = await calRes.json();
       const allNotes: CalendarNote[] = calData.notes || [];
       const todayStr = new Date().toLocaleDateString("en-CA").split("T")[0];
       const upcoming = allNotes
-        .filter((n) => {
-          const dbDateStr = n.date.substring(0, 10);
-          return dbDateStr >= todayStr;
-        })
+        .filter((n) => n.date.substring(0, 10) >= todayStr)
         .sort((a, b) => a.date.localeCompare(b.date))
         .slice(0, 3);
       setUpcomingActivities(upcoming);

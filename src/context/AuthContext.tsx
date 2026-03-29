@@ -64,8 +64,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const supabase = createClient();
 
     // Check existing session on mount
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      if (user) {
+    supabase.auth.getUser().then(async ({ data: { user }, error }) => {
+      if (error) {
+        // Stale/invalid refresh token — clear it to avoid console spam
+        await supabase.auth.signOut();
+        setIsLoading(false);
+      } else if (user) {
         loadProfile(user.id).finally(() => setIsLoading(false));
       } else {
         setIsLoading(false);
