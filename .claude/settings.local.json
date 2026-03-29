@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//c/Users/HP/.claude/**)",
+      "Bash(npm run:*)",
+      "Bash(find /c/Users/HP/.gemini/antigravity/scratch/plataformaAPM/src -type d ! -path */generated/* ! -path */.next/* ! -path */node_modules/*)",
+      "Bash(xargs grep:*)",
+      "Bash(grep -r \"certificate\\\\|certificado\" c:UsersHP.geminiantigravityscratchplataformaAPMsrc --include=*.tsx --include=*.ts)",
+      "Bash(npm install:*)",
+      "mcp__supabase__apply_migration",
+      "mcp__supabase__execute_sql"
+    ]
+  }
+}
