@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import {
   Upload, CheckCircle2, Loader2, Award, Printer,
-  Trash2, Plus, X, Download, FileDown, Star, Eye,
+  Trash2, Plus, X, Download, FileDown, Star, Eye, Save
 } from "lucide-react";
 import * as XLSX from "xlsx";
 
@@ -26,6 +26,7 @@ interface CertResult {
   name: string;
   code: string;
   accessKey: string;
+  pdfBlob?: Blob;
 }
 
 /* ─── Helpers ────────────────────────────────────────────── */
@@ -98,6 +99,7 @@ export default function AdminCertificados() {
   // Form fields
   const [selectedProject, setSelectedProject] = useState("");
   const [courseTitle, setCourseTitle] = useState("");
+  const [programDescription, setProgramDescription] = useState("");
   const [duration, setDuration] = useState("");
   const [issueDate, setIssueDate] = useState("");
   const [normasText, setNormasText] = useState(
@@ -122,6 +124,9 @@ export default function AdminCertificados() {
   const [showSigsModal, setShowSigsModal] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
+  // Guardar a proyecto
+  const [savingToProject, setSavingToProject] = useState(false);
+  const [isSavedToProject, setIsSavedToProject] = useState(false);
   // New signature form
   const [newSigName, setNewSigName] = useState("");
   const [newSigCargo, setNewSigCargo] = useState("");
@@ -168,200 +173,256 @@ export default function AdminCertificados() {
     reader.readAsBinaryString(file);
   };
 
-  /* ── PDF generation (compressed) ────────────────────────── */
+  /* ── PDF generation (pdf-lib) ────────────────────────── */
   const generatePDF = useCallback(async (
     participantName: string,
     participantCode: string,
     accessKey: string,
   ): Promise<Blob | null> => {
-    const { default: jsPDF } = await import("jspdf");
+    const { PDFDocument, StandardFonts, rgb } = await import("pdf-lib");
     const QRCode = await import("qrcode");
 
-    const doc = new jsPDF({
-      orientation: "landscape",
-      unit: "mm",
-      format: "a4",
-      compress: true,
-    });
+    try {
+      const bgRes = await fetch("/bg-final.pdf");
+      if (!bgRes.ok) throw new Error("No se pudo cargar el PDF de fondo");
+      const bgBytes = await bgRes.arrayBuffer();
+      
+      const doc = await PDFDocument.load(bgBytes);
+      const page = doc.getPages()[0]; 
+      const { width: pageWidthPt, height: pageHeightPt } = page.getSize();
 
-    /* color helpers */
-    const rgb = (hex: string): [number, number, number] => [
-      parseInt(hex.slice(1, 3), 16),
-      parseInt(hex.slice(3, 5), 16),
-      parseInt(hex.slice(5, 7), 16),
-    ];
-    const setTxt = (hex: string) => doc.setTextColor(...rgb(hex));
-    const setDrw = (hex: string) => doc.setDrawColor(...rgb(hex));
+      const fontBold = await doc.embedFont(StandardFonts.HelveticaBold);
+      const fontNormal = await doc.embedFont(StandardFonts.Helvetica);
+      const fontItalic = await doc.embedFont(StandardFonts.HelveticaOblique);
 
-    /* ── Background (compressed via canvas, cached) ── */
-    if (!bgCacheRef.current) {
-      bgCacheRef.current = await loadAndCompressImage("/cert-bg.jpg", 1400, 0.65);
+      const mm2pt = (mm: number) => mm * 2.83465;
+      const pt2mm = (pt: number) => pt / 2.83465;
+
+      // Dynamically compute the TRUE center of the page in mm
+      const PAGE_W_MM = pt2mm(pageWidthPt);  // actual page width in mm
+      const PAGE_H_MM = pt2mm(pageHeightPt); // actual page height in mm
+      const CX = PAGE_W_MM / 2;              // TRUE horizontal center
+
+      console.log(`PDF page: ${PAGE_W_MM.toFixed(1)}mm x ${PAGE_H_MM.toFixed(1)}mm — center at ${CX.toFixed(1)}mm`);
+
+      const toColor = (hex: string) => {
+        const r = parseInt(hex.slice(1, 3), 16) / 255;
+        const g = parseInt(hex.slice(3, 5), 16) / 255;
+        const b = parseInt(hex.slice(5, 7), 16) / 255;
+        return rgb(r, g, b);
+      };
+
+      // xMmCenter: horizontal center in mm from left edge
+      // yMmFromTop: vertical position in mm from TOP of page
+      const drawText = (
+        text: string, 
+        xMmCenter: number, 
+        yMmFromTop: number, 
+        sizePt: number, 
+        colorHex: string, 
+        fontId: any
+      ) => {
+        const textStr = text || "";
+        const textWidthPt = fontId.widthOfTextAtSize(textStr, sizePt);
+        const xPt = mm2pt(xMmCenter) - (textWidthPt / 2);
+        page.drawText(textStr, {
+          x: xPt,
+          y: pageHeightPt - mm2pt(yMmFromTop),
+          size: sizePt,
+          font: fontId,
+          color: toColor(colorHex),
+        });
+      };
+
+      const drawLine = (x1Mm: number, y1Mm: number, x2Mm: number, y2Mm: number, hex: string, thicknessPt: number) => {
+        page.drawLine({
+          start: { x: mm2pt(x1Mm), y: pageHeightPt - mm2pt(y1Mm) },
+          end: { x: mm2pt(x2Mm), y: pageHeightPt - mm2pt(y2Mm) },
+          thickness: thicknessPt,
+          color: toColor(hex)
+        });
+      };
+
+      const drawImageCenter = (img: any, xMmCenter: number, yMmCenter: number, wMm: number) => {
+        const hMm = wMm * (img.height / img.width);
+        page.drawImage(img, {
+          x: mm2pt(xMmCenter - wMm / 2),
+          y: pageHeightPt - mm2pt(yMmCenter + hMm / 2),
+          width: mm2pt(wMm),
+          height: mm2pt(hMm)
+        });
+      };
+
+      // Sello parameters (used for QR positioning too)
+      const SELLO_CX = 70;   // center-x: 70mm from left
+      const SELLO_CY = 135;  // center-y: bajado 3cm (de 105 a 135)
+      const SELLO_W = 80;    // 80mm wide
+
+      /* ── Sello APM on the LEFT ── */
+      try {
+        const selloRes = await fetch("/sello-apm.png");
+        if (selloRes.ok) {
+          const selloImage = await doc.embedPng(await selloRes.arrayBuffer());
+          drawImageCenter(selloImage, SELLO_CX, SELLO_CY, SELLO_W); 
+        }
+      } catch (err) { console.error("Error drawing Sello:", err); }
+
+      /* ── LOGO APM at Top Center ── */
+      try {
+        const logoRes = await fetch("/logo-apm.png");
+        if (logoRes.ok) {
+          const logoImage = await doc.embedPng(await logoRes.arrayBuffer());
+          drawImageCenter(logoImage, CX, 30, 55);
+        }
+      } catch (err) { console.error("Error drawing Logo:", err); }
+
+      // ── PROPORTIONAL LAYOUT ──
+      // Dynamically distribute content to fill the page without leaving empty gaps
+      const TOP_START = 50;  // mm from top where text content begins (below logo)
+      const BOTTOM_LIMIT = PAGE_H_MM - 20; // 2cm from bottom edge
+      const CONTENT_H = BOTTOM_LIMIT - TOP_START; // total available vertical space
+
+      // Position each element as a proportion of the available content height
+      const yAt = (pct: number) => TOP_START + CONTENT_H * pct;
+
+      // Title (very large, bold)
+      drawText(courseTitle.toUpperCase(), CX, yAt(0.04), 30, "#1e293b", fontBold);
+
+      // "Se otorga a:" — reduced interline from title
+      drawText("Se otorga a:", CX, yAt(0.10), 22, "#6b7280", fontItalic);
+
+      // Participant name — reduced interline
+      drawText(participantName.toUpperCase(), CX, yAt(0.18), 34, "#111827", fontBold);
+
+      // "Por haber completado..." — reduced interline (moved closer to name)
+      drawText("Por haber completado satisfactoriamente el programa de:", CX, yAt(0.24), 20, "#4b5563", fontNormal);
+
+      // Program description — reduced interline
+      const progDesc = programDescription || courseTitle;
+      drawText(progDesc, CX, yAt(0.31), 24, "#1e293b", fontBold);
+
+      // Decorative line before normas
+      drawLine(CX - 40, yAt(0.37), CX + 40, yAt(0.37), "#d1d5db", 0.8);
+
+      // "Basado en las normas:"
+      drawText("Basado en las normas:", CX, yAt(0.42), 20, "#6b7280", fontItalic);
+
+      // Norma lines
+      const normaLines = normasText.split("\n").map(l => l.trim()).filter(Boolean).slice(0, 6);
+      normaLines.forEach((line, i) => {
+        drawText(line, CX, yAt(0.48 + i * 0.05), 19, "#374151", fontNormal);
+      });
+
+      // Data line: "Duración: XX horas   |   Fecha: ..." (reduced gap from normas)
+      const afterNormasPct = 0.48 + Math.max(normaLines.length - 1, 0) * 0.05;
+      const dataLinePct = Math.max(afterNormasPct + 0.02, 0.74); // gap further reduced!
+
+      // Use the raw date text (user types freely, e.g. multiple dates)
+      const dataText = `Duración: ${duration}     |     Fecha: ${issueDate}`;
+      drawText(dataText, CX, yAt(dataLinePct), 19, "#374151", fontItalic);
+
+      // ── Signatures ──
+      const SIG_W_MM = 44;
+      const sigCargoY = yAt(0.97);    // cargo text near bottom
+      const sigNameY = yAt(0.93);      // name above cargo
+      const sigLineY = yAt(0.89);      // line above name
+      const SIG_CENTER_Y = yAt(0.85);  // signature image center
+      const SIG_LEFT_CX = CX - 55;
+      const SIG_RIGHT_CX = CX + 55;
+
+      const gerenteSig = signatures.find((s:any) => s.id === gerenteSigId);
+      const consultorSig = signatures.find((s:any) => s.id === consultorSigId);
+
+      const makeTransparent = (srcBytes: ArrayBuffer): Promise<Uint8Array | null> => {
+        return new Promise((resolve) => {
+          const blob = new Blob([srcBytes]);
+          const url = URL.createObjectURL(blob);
+          const img = new Image();
+          img.onload = () => {
+            const canvas = document.createElement("canvas");
+            canvas.width = img.width; canvas.height = img.height;
+            const ctx = canvas.getContext("2d");
+            if (!ctx) return resolve(null);
+            ctx.drawImage(img, 0, 0);
+            const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const d = imgData.data;
+            for (let i = 0; i < d.length; i += 4) {
+              // Convert white or light grey pixels to highly transparent
+              if (d[i] > 200 && d[i+1] > 200 && d[i+2] > 200) {
+                d[i+3] = 0; 
+              } else if (d[i] > 160 && d[i+1] > 160 && d[i+2] > 160) {
+                // Soft edges (anti-aliasing)
+                d[i+3] = Math.max(0, d[i+3] - 150);
+              }
+            }
+            ctx.putImageData(imgData, 0, 0);
+            const dataUrl = canvas.toDataURL("image/png");
+            URL.revokeObjectURL(url);
+            const base64 = dataUrl.split(',')[1];
+            resolve(Uint8Array.from(atob(base64), c => c.charCodeAt(0)));
+          };
+          img.onerror = () => resolve(null);
+          img.src = url;
+        });
+      };
+
+      const embedSigImage = async (url: string) => {
+        try {
+          const res = await fetch(url);
+          const bytes = await res.arrayBuffer();
+          // Remove white background dynamically
+          const cleanPngBytes = await makeTransparent(bytes);
+          if (cleanPngBytes) {
+            return await doc.embedPng(cleanPngBytes).catch(() => doc.embedJpg(bytes));
+          }
+          return await doc.embedPng(bytes).catch(() => doc.embedJpg(bytes));
+        } catch { return null; }
+      };
+
+      if (gerenteSig?.signature_url) {
+        const img = await embedSigImage(gerenteSig.signature_url);
+        // Gerente is scaled slightly larger as requested
+        if (img) drawImageCenter(img, SIG_LEFT_CX, SIG_CENTER_Y, SIG_W_MM * 1.15);
+      }
+
+      if (consultorSig?.signature_url) {
+        const img = await embedSigImage(consultorSig.signature_url);
+        if (img) drawImageCenter(img, SIG_RIGHT_CX, SIG_CENTER_Y, SIG_W_MM);
+      }
+
+      // ── QR Code on the RIGHT side, same height as the seal ──
+      const QR_SIZE_MM = 60;
+      const QR_CX = PAGE_W_MM - SELLO_CX;
+      const QR_CY = SELLO_CY;
+      const qrUrl = `${window.location.origin}/certificados/validar/${accessKey}`;
+      const qrDataUrl = await QRCode.toDataURL(qrUrl, { margin: 1, width: 512 });
+      const qrBase64 = qrDataUrl.split(',')[1];
+      const qrBytes = Uint8Array.from(atob(qrBase64), c => c.charCodeAt(0));
+      const qrImage = await doc.embedPng(qrBytes);
+      drawImageCenter(qrImage, QR_CX, QR_CY, QR_SIZE_MM);
+
+      // Signature lines
+      drawLine(SIG_LEFT_CX - 22, sigLineY, SIG_LEFT_CX + 22, sigLineY, "#6b7280", 1.0);
+      drawLine(SIG_RIGHT_CX - 22, sigLineY, SIG_RIGHT_CX + 22, sigLineY, "#6b7280", 1.0);
+
+      // Signature names
+      if (gerenteSig) drawText(gerenteSig.name, SIG_LEFT_CX, sigNameY, 17, "#1e293b", fontBold);
+      if (consultorSig) drawText(consultorSig.name, SIG_RIGHT_CX, sigNameY, 17, "#1e293b", fontBold);
+
+      // Signature cargos
+      if (gerenteSig) drawText(gerenteSig.cargo || "Gerente General", SIG_LEFT_CX, sigCargoY, 15, "#6b7280", fontNormal);
+      if (consultorSig) drawText(consultorSig.cargo || "Consultor", SIG_RIGHT_CX, sigCargoY, 15, "#6b7280", fontNormal);
+
+      // Código at bottom right
+      drawText(`Código: ${participantCode}`, PAGE_W_MM - 40, sigCargoY, 15, "#374151", fontNormal);
+
+      const pdfBytesFinal = await doc.save();
+      return new Blob([pdfBytesFinal.buffer as ArrayBuffer], { type: "application/pdf" });
+    } catch (error) {
+      console.error("Error generating PDF:", error);
+      return null;
     }
-    if (bgCacheRef.current) {
-      doc.addImage(bgCacheRef.current, "JPEG", 0, 0, 297, 210);
-    }
-
-    /* ── TITLE ── */
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(13);
-    setTxt("#1e293b");
-    doc.text(courseTitle.toUpperCase(), CX_FULL, 47, { align: "center" });
-
-    /* green decorative line */
-    setDrw("#86a33b");
-    doc.setLineWidth(0.4);
-    doc.line(50, 52, 247, 52);
-
-    /* ── "Se otorga a:" ── */
-    doc.setFont("helvetica", "italic");
-    doc.setFontSize(8);
-    setTxt("#6b7280");
-    doc.text("Se otorga a:", CX_BODY, 62, { align: "center" });
-
-    /* ── Participant name ── */
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(18);
-    setTxt("#111827");
-    doc.text(participantName.toUpperCase(), CX_BODY, 73, {
-      align: "center",
-      maxWidth: 185,
-    });
-
-    /* ── "Por haber completado..." ── */
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(7.5);
-    setTxt("#4b5563");
-    doc.text(
-      "Por haber completado satisfactoriamente el programa de:",
-      CX_BODY, 84, { align: "center" }
-    );
-
-    /* ── Course title (program name) ── */
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(10);
-    setTxt("#1e293b");
-    doc.text(courseTitle, CX_BODY, 93, { align: "center", maxWidth: 185 });
-
-    /* ── "Basado en las normas:" ── */
-    doc.setFont("helvetica", "italic");
-    doc.setFontSize(7.5);
-    setTxt("#6b7280");
-    doc.text("Basado en las normas:", CX_BODY, 103, { align: "center" });
-
-    /* ── Norma lines ── */
-    const normaLines = normasText.split("\n").map(l => l.trim()).filter(Boolean).slice(0, 6);
-    const normaLH = normaLines.length > 4 ? 6.5 : 7;
-
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(7.5);
-    setTxt("#374151");
-    normaLines.forEach((line, i) => {
-      doc.text(line, CX_BODY, 111 + i * normaLH, { align: "center" });
-    });
-
-    /* ── Dynamic Y after normas ── */
-    const afterNormasY = 111 + Math.max(normaLines.length - 1, 0) * normaLH;
-    const sep1Y = Math.max(afterNormasY + 9, 148);
-    const dataLabelY = sep1Y + 5;
-    const dataValY = dataLabelY + 6;
-    const sep2Y = dataValY + 7;
-    const sigTopY = sep2Y + 3;
-
-    /* ── Separator 1 ── */
-    setDrw("#d1d5db");
-    doc.setLineWidth(0.2);
-    doc.line(70, sep1Y, 272, sep1Y);
-
-    /* ── Data row: DURACIÓN | FECHA | CÓDIGO ── */
-    const formattedDate = issueDate
-      ? new Date(issueDate).toLocaleDateString("es-PE", {
-        day: "2-digit", month: "long", year: "numeric", timeZone: "UTC",
-      })
-      : "";
-
-    const dataCols = [
-      { label: "DURACIÓN", value: duration, cx: 97 },
-      { label: "FECHA DE EMISIÓN", value: formattedDate, cx: 180 },
-      { label: "CÓDIGO", value: participantCode, cx: 258 },
-    ];
-
-    dataCols.forEach(({ label, value, cx }) => {
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(6);
-      setTxt("#9ca3af");
-      doc.text(label, cx, dataLabelY, { align: "center" });
-      doc.setFontSize(8.5);
-      setTxt("#1e293b");
-      doc.text(value, cx, dataValY, { align: "center" });
-    });
-
-    /* column dividers */
-    setDrw("#e5e7eb");
-    doc.setLineWidth(0.2);
-    doc.line(138, sep1Y + 2, 138, dataValY + 2);
-    doc.line(219, sep1Y + 2, 219, dataValY + 2);
-
-    /* ── Separator 2 ── */
-    setDrw("#d1d5db");
-    doc.line(70, sep2Y, 272, sep2Y);
-
-    /* ── Signature section ── */
-    const SIG_W = 44;
-    const SIG_H = 20;
-    const LEFT_CX = 84;
-    const RIGHT_CX = 224;
-    const QR_CX = 154;
-    const QR_SIZE = 18;
-
-    const gerenteSig = signatures.find(s => s.id === gerenteSigId);
-    const consultorSig = signatures.find(s => s.id === consultorSigId);
-
-    if (gerenteSig?.signature_url) {
-      const b64 = await fetchAsDataUrl(gerenteSig.signature_url);
-      if (b64) doc.addImage(b64, "PNG", LEFT_CX - SIG_W / 2, sigTopY, SIG_W, SIG_H);
-    }
-
-    if (consultorSig?.signature_url) {
-      const b64 = await fetchAsDataUrl(consultorSig.signature_url);
-      if (b64) doc.addImage(b64, "PNG", RIGHT_CX - SIG_W / 2, sigTopY, SIG_W, SIG_H);
-    }
-
-    /* QR code */
-    const qrUrl = `${window.location.origin}/certificados/validar/${accessKey}`;
-    const qrDataUrl = await QRCode.toDataURL(qrUrl, { margin: 1, width: 128 });
-    doc.addImage(qrDataUrl, "PNG", QR_CX - QR_SIZE / 2, sigTopY + 1, QR_SIZE, QR_SIZE);
-
-    /* signature lines */
-    const sigLineY = sigTopY + SIG_H + 2;
-    setDrw("#6b7280");
-    doc.setLineWidth(0.3);
-    doc.line(LEFT_CX - 22, sigLineY, LEFT_CX + 22, sigLineY);
-    doc.line(RIGHT_CX - 22, sigLineY, RIGHT_CX + 22, sigLineY);
-
-    /* names */
-    const sigNameY = sigLineY + 5;
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(7.5);
-    setTxt("#1e293b");
-    if (gerenteSig) doc.text(gerenteSig.name, LEFT_CX, sigNameY, { align: "center" });
-    if (consultorSig) doc.text(consultorSig.name, RIGHT_CX, sigNameY, { align: "center" });
-
-    /* cargos */
-    const sigCargoY = sigNameY + 4.5;
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(6.5);
-    setTxt("#6b7280");
-    if (gerenteSig) doc.text(gerenteSig.cargo || "Gerente General", LEFT_CX, sigCargoY, { align: "center" });
-    if (consultorSig) doc.text(consultorSig.cargo || "Consultor", RIGHT_CX, sigCargoY, { align: "center" });
-
-    /* "Verificar" under QR */
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(5);
-    setTxt("#9ca3af");
-    doc.text("Verificar certificado", QR_CX, sigTopY + QR_SIZE + 4, { align: "center" });
-
-    return doc.output("blob");
-  }, [courseTitle, duration, issueDate, normasText, signatures, gerenteSigId, consultorSigId]);
+  }, [courseTitle, programDescription, duration, issueDate, normasText, signatures, gerenteSigId, consultorSigId]);
 
   /* ── Generation handler ─────────────────────────────────── */
   const handleGenerate = async () => {
@@ -395,6 +456,27 @@ export default function AdminCertificados() {
       const pdfBlob = await generatePDF(fullName, code, accessKey);
       if (!pdfBlob) { errorCount++; continue; }
 
+      generated.push({ name: fullName, code, accessKey, pdfBlob });
+      setProgress(Math.round(((i + 1) / excelData.length) * 100));
+    }
+
+    setGenerating(false);
+    setResults(generated);
+    setIsSavedToProject(false);
+    setShowResultModal(true);
+
+    if (errorCount > 0) {
+      alert(`${generated.length} certificados pre-generados. ${errorCount} con errores de creación técnica.`);
+    }
+  };
+
+  /* ── Save to Project (Mass upload) ───────────────────────── */
+  const handleSaveToProject = async () => {
+    setSavingToProject(true);
+    let errorCount = 0;
+
+    for (let i = 0; i < results.length; i++) {
+      const cert = results[i];
       try {
         const formData = new FormData();
         formData.append("projectId", selectedProject);
@@ -402,37 +484,34 @@ export default function AdminCertificados() {
         formData.append("duration", duration);
         formData.append("issueDate", issueDate);
         formData.append("normas", normasText);
-        formData.append("participantName", fullName);
-        formData.append("participantCode", code);
-        formData.append("accessKey", accessKey);
-        formData.append("pdf", pdfBlob, `${fullName}.pdf`);
+        formData.append("participantName", cert.name);
+        formData.append("participantCode", cert.code);
+        formData.append("accessKey", cert.accessKey);
+
+        let blobToUpload = cert.pdfBlob;
+        if (!blobToUpload) {
+          blobToUpload = await generatePDF(cert.name, cert.code, cert.accessKey) || undefined;
+          if (!blobToUpload) { errorCount++; continue; }
+        }
+
+        formData.append("pdf", blobToUpload, `${cert.name}.pdf`);
 
         const res = await fetch("/api/admin/certificates/upload", {
           method: "POST",
           body: formData,
         });
 
-        if (res.ok) {
-          generated.push({ name: fullName, code, accessKey });
-        } else {
-          const errData = await res.json().catch(() => ({ error: "Error desconocido" }));
-          console.error(`Error certificado ${fullName}:`, errData.error);
-          errorCount++;
-        }
+        if (!res.ok) { errorCount++; }
       } catch (e) {
-        console.error(`Error de red certificado ${fullName}:`, e);
         errorCount++;
       }
-
-      setProgress(Math.round(((i + 1) / excelData.length) * 100));
     }
 
-    setGenerating(false);
-    setResults(generated);
-    setShowResultModal(true);
-
+    setSavingToProject(false);
     if (errorCount > 0) {
-      alert(`${generated.length} certificados generados correctamente. ${errorCount} con errores.`);
+      alert(`Se guardaron con ${errorCount} errores. Inténtalo de nuevo para los fallidos.`);
+    } else {
+      setIsSavedToProject(true);
     }
   };
 
@@ -459,9 +538,7 @@ export default function AdminCertificados() {
     const zip = new JSZip();
 
     const formattedDate = issueDate
-      ? new Date(issueDate).toLocaleDateString("es-PE", {
-        day: "2-digit", month: "2-digit", year: "numeric", timeZone: "UTC",
-      }).replace(/\//g, "-")
+      ? issueDate.replace(/[/\\:*?"<>|]/g, "-").trim()
       : "sin-fecha";
 
     const folderName = `Certificados ${formattedDate}`;
@@ -590,6 +667,12 @@ export default function AdminCertificados() {
               value={courseTitle} onChange={e => setCourseTitle(e.target.value)} />
           </div>
 
+          <div>
+            <label className="block text-xs font-bold text-text-muted mb-1">Descripción del Programa</label>
+            <input type="text" className="input-field" placeholder="Ej: Auditor interno en Sistema de Gestión Integrados"
+              value={programDescription} onChange={e => setProgramDescription(e.target.value)} />
+          </div>
+
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-bold text-text-muted mb-1">Duración</label>
@@ -597,8 +680,9 @@ export default function AdminCertificados() {
                 value={duration} onChange={e => setDuration(e.target.value)} />
             </div>
             <div>
-              <label className="block text-xs font-bold text-text-muted mb-1">Fecha de Emisión</label>
-              <input type="date" className="input-field" value={issueDate} onChange={e => setIssueDate(e.target.value)} />
+              <label className="block text-xs font-bold text-text-muted mb-1">Fecha(s) de capacitación</label>
+              <input type="text" className="input-field" placeholder="Ej: 23, 25, 26 de Febrero / 04, 05 y 11 de Marzo del 2026"
+                value={issueDate} onChange={e => setIssueDate(e.target.value)} />
             </div>
           </div>
 
@@ -809,11 +893,26 @@ export default function AdminCertificados() {
             </div>
 
             {/* Download all button */}
-            <div className="px-6 pt-4 pb-2 flex justify-start">
+            <div className="px-6 pt-4 pb-2 flex gap-3 justify-start items-center">
               <button onClick={downloadZip}
-                className="btn-primary py-2.5 px-5 text-sm font-bold flex items-center gap-2">
-                <FileDown size={18} /> Descargar Todos los Certificados
+                className="btn-secondary py-2.5 px-5 text-sm font-bold flex items-center gap-2 shadow-sm bg-white hover:bg-surface transition-colors">
+                <FileDown size={18} className="text-primary"/> Descargar ZIP
               </button>
+              
+              {isSavedToProject ? (
+                <button className="bg-success/10 text-success border border-success/20 font-bold py-2.5 px-5 text-sm rounded-lg flex items-center gap-2 cursor-default shrink-0">
+                  <CheckCircle2 size={18} /> ✅ Certificados Vinculados
+                </button>
+              ) : (
+                <button 
+                  onClick={handleSaveToProject} 
+                  disabled={savingToProject}
+                  className="btn-primary py-2.5 px-6 font-bold flex items-center gap-2 shadow-md shrink-0 transition-all hover:scale-[1.02] active:scale-[0.98]"
+                >
+                  {savingToProject ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />} 
+                  {savingToProject ? "Guardando en Base de Datos..." : "Guardar en el Proyecto"}
+                </button>
+              )}
             </div>
 
             {/* File list */}

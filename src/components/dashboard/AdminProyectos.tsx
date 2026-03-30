@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { 
+import {
   Trash2, 
   Edit2, 
   ArrowLeft, 
@@ -17,7 +17,9 @@ import {
   X,
   Building2,
   Mail,
-  Target
+  Target,
+  Award,
+  FileDown
 } from "lucide-react";
 
 const statusColors: any = {
@@ -50,7 +52,13 @@ export default function AdminProyectos() {
   const [detailProject, setDetailProject] = useState<any>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [reports, setReports] = useState<any[]>([]);
+  const [certificates, setCertificates] = useState<any[]>([]);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+
+  // Certificates Modal states
+  const [selectedCourseCerts, setSelectedCourseCerts] = useState<any[]>([]);
+  const [showCertModal, setShowCertModal] = useState(false);
+  const [deletingGroup, setDeletingGroup] = useState<string | null>(null);
 
   // Detail Goals states
   const [showAddGoal, setShowAddGoal] = useState(false);
@@ -85,23 +93,48 @@ export default function AdminProyectos() {
     setDetailLoading(true);
     setView("detail");
     try {
-      // Fetch full project with goals, timeLogs, clientUsers
-      const pRes = await fetch(`/api/projects/${projectId}`);
-      const pData = await pRes.json();
-      setDetailProject(pData && !pData.error ? pData : null);
+      // Fetch full project, reports, and certificates
+      const [pRes, rRes, cRes] = await Promise.all([
+        fetch(`/api/projects/${projectId}`),
+        consId ? fetch(`/api/consultant/reports?consultantId=${consId}&projectId=${projectId}`) : Promise.resolve({ json: () => ({ reports: [] }) }),
+        fetch(`/api/projects/${projectId}/certificates`)
+      ]);
 
-      // Fetch reports if consultant is assigned
-      if (consId) {
-        const rRes = await fetch(`/api/consultant/reports?consultantId=${consId}&projectId=${projectId}`);
-        const rData = await rRes.json();
-        setReports(rData.reports || []);
-      } else {
-        setReports([]);
-      }
+      const pData = await pRes.json();
+      const rData = await rRes.json();
+      const cData = await cRes.json();
+
+      setDetailProject(pData && !pData.error ? pData : null);
+      setReports(rData.reports || []);
+      setCertificates(Array.isArray(cData) ? cData : []);
+      
     } catch (error) {
        console.error(error);
     }
     setDetailLoading(false);
+  };
+
+  const handleDeleteCourseCerts = async (courseTitle: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!confirm(`¿Seguro que deseas eliminar el grupo "${courseTitle}" y TODOS los certificados PDF asociados? Esta acción borrará los registros y los archivos del servidor.`)) return;
+
+    setDeletingGroup(courseTitle);
+    try {
+      const res = await fetch(`/api/projects/${detailProject.id}/certificates?courseTitle=${encodeURIComponent(courseTitle)}`, {
+        method: "DELETE"
+      });
+      
+      if (res.ok) {
+        // Remove mathematically from current state
+        setCertificates(prev => prev.filter(c => c.course_title !== courseTitle));
+      } else {
+        const body = await res.json();
+        alert(`Error: ${body.error || "Algo falló al intentar borrar"}`);
+      }
+    } catch (err) {
+      alert("Error de conexión");
+    }
+    setDeletingGroup(null);
   };
 
   // -------------------------------------------------------------------------------------------------------------------------
@@ -248,6 +281,29 @@ export default function AdminProyectos() {
   const availableConsultants = users.filter(u => u.role === "CONSULTOR" && u.status === "ACTIVO");
   const availableClients = users.filter(u => u.role === "CLIENTE" && u.status === "ACTIVO");
 
+  const downloadZip = async () => {
+    if(selectedCourseCerts.length === 0) return;
+    const JSZip = (await import("jszip")).default;
+    const { saveAs } = (await import("file-saver")).default || await import("file-saver");
+    const zip = new JSZip();
+    
+    const courseName = selectedCourseCerts[0]?.course_title || "Certificados";
+    const folderName = `Certificados - ${courseName}`;
+    const folder = zip.folder(folderName) ?? zip;
+
+    // Fetch and add each PDF to the ZIP
+    await Promise.all(selectedCourseCerts.map(async (c) => {
+       try {
+         const res = await fetch(c.pdf_url);
+         const blob = await res.blob();
+         folder.file(`${c.participant_name} - ${c.participant_code || c.access_key}.pdf`, blob);
+       } catch(err) { console.error("Error downloading PDF for zip:", err); }
+    }));
+
+    const content = await zip.generateAsync({ type: "blob" });
+    saveAs(content, `${folderName}.zip`);
+  };
+
   if (view === "detail") {
     if (detailLoading || !detailProject) {
       return (
@@ -270,6 +326,13 @@ export default function AdminProyectos() {
         totalHours += diff / (1000 * 60 * 60);
       }
     });
+
+    const groupedCerts = certificates.reduce((acc, cert) => {
+      const title = cert.course_title || "Certificado General";
+      if (!acc[title]) acc[title] = [];
+      acc[title].push(cert);
+      return acc;
+    }, {} as Record<string, any[]>);
 
     return (
       <div className="space-y-6 animate-fade-in relative z-0">
@@ -412,6 +475,49 @@ export default function AdminProyectos() {
                  </div>
                )}
              </div>
+
+             {/* CERTIFICATES */}
+             <div className="card space-y-4">
+               <h2 className="text-lg font-bold flex items-center gap-2">
+                 <Award size={20} className="text-primary" /> Certificados Generados
+               </h2>
+               {Object.keys(groupedCerts).length === 0 ? (
+                 <div className="text-center p-6 text-text-muted bg-surface/50 border border-border border-dashed rounded-xl">
+                   Aún no hay certificados subidos para este proyecto.
+                 </div>
+               ) : (
+                 <div className="grid grid-cols-1 gap-3">
+                   {Object.entries(groupedCerts).map(([title, certs]: [string, any]) => (
+                     <div key={title} 
+                          onClick={() => { setSelectedCourseCerts(certs); setShowCertModal(true); }}
+                          className="flex items-center justify-between p-3 border border-border rounded-lg bg-surface/30 hover:bg-surface transition-colors cursor-pointer group shadow-sm">
+                       <div className="flex items-center gap-3 min-w-0">
+                         <div className="w-10 h-10 rounded bg-success/10 flex items-center justify-center flex-shrink-0 text-success">
+                           <Award size={18} />
+                         </div>
+                         <div className="min-w-0">
+                           <p className="font-bold text-sm truncate text-foreground group-hover:text-success transition-colors" title={title}>{title}</p>
+                           <p className="text-[10px] text-text-muted mt-0.5">{certs.length} emitido{certs.length !== 1 ? 's' : ''}</p>
+                         </div>
+                       </div>
+                       <div className="flex gap-2">
+                         <button className="text-[10px] font-bold px-3 py-1.5 bg-success/10 hover:bg-success/20 text-success rounded flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                           <Eye size={12}/> Ver Lista
+                         </button>
+                         <button 
+                           title="Eliminar este grupo"
+                           onClick={(e) => handleDeleteCourseCerts(title, e)} 
+                           disabled={deletingGroup === title}
+                           className="text-[10px] items-center gap-1 px-2.5 py-1.5 font-bold rounded flex opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap bg-danger/10 hover:bg-danger text-danger hover:text-white disabled:opacity-50"
+                         >
+                           {deletingGroup === title ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12}/>} Borrar
+                         </button>
+                       </div>
+                     </div>
+                   ))}
+                 </div>
+               )}
+             </div>
            </div>
         </div>
 
@@ -526,7 +632,54 @@ export default function AdminProyectos() {
                 </button>
               </div>
               <div className="flex-1 bg-surface">
-                <iframe src={previewUrl} className="w-full h-full border-none" title="Vista previa" />
+                <iframe src={previewUrl.includes('supabase') ? `https://docs.google.com/viewer?url=${encodeURIComponent(previewUrl)}&embedded=true` : previewUrl} className="w-full h-full border-none" title="Vista previa" />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modal: CERTIFICATES LIST */}
+        {showCertModal && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4" onClick={() => setShowCertModal(false)}>
+            <div className="bg-white rounded-2xl w-full max-w-4xl max-h-[85vh] flex flex-col animate-scale-in" onClick={e => e.stopPropagation()}>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between p-5 border-b border-border bg-surface/30 rounded-t-2xl gap-4">
+                <div>
+                  <h2 className="text-xl font-bold flex items-center gap-2">
+                    <Award className="text-primary" /> {selectedCourseCerts[0]?.course_title}
+                  </h2>
+                  <p className="text-sm text-text-muted mt-1">{selectedCourseCerts.length} certificados generados</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button onClick={downloadZip} className="btn-secondary bg-white py-1.5 px-3 flex items-center gap-2 text-sm shadow-sm hover:shadow">
+                    <FileDown size={14}/> Bajar Todos (ZIP)
+                  </button>
+                  <button onClick={() => setShowCertModal(false)} className="text-text-muted hover:text-danger p-1.5 bg-white rounded-lg border border-border">
+                    <X size={20} />
+                  </button>
+                </div>
+              </div>
+              
+              <div className="flex-1 overflow-y-auto p-5 bg-surface/10 rounded-b-2xl">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {selectedCourseCerts.map((cert) => (
+                    <div key={cert.id} className="flex flex-col gap-3 p-4 border border-border rounded-xl bg-white hover:border-primary/30 transition-colors shadow-sm">
+                      <div>
+                        <p className="font-bold text-sm text-foreground leading-tight line-clamp-2" title={cert.participant_name}>{cert.participant_name}</p>
+                        <p className="text-xs text-text-muted font-mono mt-2 w-full bg-surface px-2 py-1 rounded border border-border/50 truncate" title={cert.participant_code || cert.access_key}>
+                          <span className="font-bold text-text-light mr-1">ID:</span>{cert.participant_code || cert.access_key}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2 mt-auto pt-2 border-t border-border border-dashed">
+                        <button onClick={() => setPreviewUrl(cert.pdf_url)} className="flex-1 py-1.5 bg-primary/10 hover:bg-primary/20 text-primary font-bold text-xs rounded transition-colors flex justify-center items-center gap-1">
+                          <Eye size={14}/> Ver PDF
+                        </button>
+                        <a href={cert.pdf_url} target="_blank" rel="noopener noreferrer" download={`${cert.participant_name}.pdf`} className="flex-1 py-1.5 bg-surface hover:bg-border/50 text-foreground font-bold text-xs rounded transition-colors border border-border flex items-center justify-center gap-1">
+                          <Download size={14}/> Bajar
+                        </a>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           </div>
