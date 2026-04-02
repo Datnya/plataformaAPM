@@ -7,7 +7,7 @@ export type {
   TimeLog,
   Goal,
   Prospect,
-} from "@/generated/prisma/client";
+} from "@generated/prisma/client";
 
 // Database enum equivalents (since SQLite doesn't have native enums)
 export const Role = {
