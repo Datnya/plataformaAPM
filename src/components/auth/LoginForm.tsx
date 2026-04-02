@@ -58,8 +58,8 @@ export default function LoginForm() {
           style={{ objectPosition: '15% 50%' }}
           priority
         />
-        {/* Black 30% Opacity Overlay (Lighter) */}
-        <div className="absolute inset-0 bg-black/30 z-10 pointers-events-none" />
+        {/* Black 20% Opacity Overlay (Even Lighter) */}
+        <div className="absolute inset-0 bg-black/20 z-10 pointers-events-none" />
       </div>
 
       {/* Right Column: Form Area */}
