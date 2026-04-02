@@ -55,11 +55,11 @@ export default function LoginForm() {
           alt="APM Group Inicio"
           fill
           className="object-cover"
-          style={{ objectPosition: '30% 50%' }}
+          style={{ objectPosition: '15% 50%' }}
           priority
         />
-        {/* Black 50% Opacity Overlay */}
-        <div className="absolute inset-0 bg-black/50 z-10 pointers-events-none" />
+        {/* Black 30% Opacity Overlay (Lighter) */}
+        <div className="absolute inset-0 bg-black/30 z-10 pointers-events-none" />
       </div>
 
       {/* Right Column: Form Area */}
