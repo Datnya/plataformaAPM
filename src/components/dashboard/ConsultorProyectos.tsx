@@ -169,11 +169,9 @@ export default function ConsultorProyectos() {
 
   const fetchReportsForProject = async (projectId: string) => {
     try {
-      const res = await fetch(`/api/consultant/reports?consultantId=${userId}&projectId=${projectId}`);
-      if (res.ok) {
-        const data = await res.json();
-        setProjectReports(Array.isArray(data.reports) ? data.reports : []);
-      }
+      const rRes = await fetch(`/api/consultant/reports?consultantId=${userId}&projectId=${projectId}`);
+      const rData = await rRes.json().catch(() => ({ reports: [] }));
+      setProjectReports(Array.isArray(rData.reports) ? rData.reports : []);
     } catch {
       setProjectReports([]);
     }

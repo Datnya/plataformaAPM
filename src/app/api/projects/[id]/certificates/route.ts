@@ -1,10 +1,12 @@
 import { NextResponse } from "next/server";
+import { createClient } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const supabase = await createClient();
     const { id } = await params;
-    const { data: certificates, error } = await supabaseAdmin
+    const { data: certificates, error } = await supabase
       .from("certificates")
       .select("*")
       .eq("project_id", id)

@@ -100,9 +100,9 @@ export default function AdminProyectos() {
         fetch(`/api/projects/${projectId}/certificates`)
       ]);
 
-      const pData = await pRes.json();
-      const rData = await rRes.json();
-      const cData = await cRes.json();
+      const pData = await pRes.json().catch(() => ({ error: "Error parsing project" }));
+      const rData = await Promise.resolve(rRes.json()).catch(() => ({ reports: [] }));
+      const cData = await cRes.json().catch(() => ([]));
 
       setDetailProject(pData && !pData.error ? pData : null);
       setReports(rData.reports || []);
@@ -305,10 +305,21 @@ export default function AdminProyectos() {
   };
 
   if (view === "detail") {
-    if (detailLoading || !detailProject) {
+    if (detailLoading) {
       return (
         <div className="flex items-center justify-center p-16 text-text-muted gap-3 animate-fade-in">
            <Loader2 size={24} className="animate-spin" /> Cargando detalle del proyecto...
+        </div>
+      );
+    }
+
+    if (!detailProject) {
+      return (
+        <div className="flex flex-col items-center justify-center p-16 text-text-muted gap-3 animate-fade-in">
+           <p className="font-bold">Error al cargar o el proyecto no existe.</p>
+           <button onClick={openList} className="btn-secondary px-4 py-2 mt-2 flex items-center gap-2 text-sm shadow-sm">
+             <ArrowLeft size={16} /> Volver a la lista
+           </button>
         </div>
       );
     }
