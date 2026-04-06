@@ -13,6 +13,7 @@ export async function GET(
       return NextResponse.json({ error: "Clave de acceso requerida" }, { status: 400 });
     }
 
+    const supabaseAdmin = getSupabaseAdmin();
     const { data, error } = await supabaseAdmin
       .from("certificates")
       .select("*")

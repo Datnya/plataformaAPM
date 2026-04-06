@@ -105,38 +105,30 @@ export default function AdminProyectos() {
   const openDetail = async (projectId: string, consId: string | undefined) => {
     setDetailLoading(true);
     setView("detail");
+    setFetchError(null);
     try {
       const [pRes, rRes, cRes] = await Promise.all([
         fetch(`/api/projects/${projectId}`),
-        consId ? fetch(`/api/consultant/reports?consultantId=${consId}&projectId=${projectId}`) : Promise.resolve({ text: () => JSON.stringify({ reports: [] }) }),
+        consId ? fetch(`/api/consultant/reports?consultantId=${consId}&projectId=${projectId}`) : null,
         fetch(`/api/projects/${projectId}/certificates`)
       ]);
 
-      const [pText, rText, cText] = await Promise.all([pRes.text(), rRes.text(), cRes.text()]);
+      // Check HTTP status before parsing
+      if (!pRes.ok) throw new Error(`Error al cargar proyecto (${pRes.status})`);
+      if (rRes && !rRes.ok) throw new Error(`Error al cargar reportes (${rRes.status})`);
+      if (!cRes.ok) throw new Error(`Error al cargar certificados (${cRes.status})`);
 
-      let pData, rData, cData;
-      try {
-        pData = JSON.parse(pText);
-      } catch (err) {
-        throw new Error(`Project API returned invalid JSON: ${pText.substring(0, 500)}`);
-      }
-      try {
-        rData = JSON.parse(rText);
-      } catch (err) {
-        throw new Error(`Reports API returned invalid JSON: ${rText.substring(0, 500)}`);
-      }
-      try {
-        cData = JSON.parse(cText);
-      } catch (err) {
-        throw new Error(`Certificates API returned invalid JSON: ${cText.substring(0, 500)}`);
-      }
+      const [pData, rData, cData] = await Promise.all([
+        pRes.json(),
+        rRes ? rRes.json() : { reports: [] },
+        cRes.json()
+      ]);
 
       if (pData.error) {
-         setFetchError(pData.error);
-         setDetailProject(null);
+        setFetchError(pData.error);
+        setDetailProject(null);
       } else {
-         setFetchError(null);
-         setDetailProject(pData);
+        setDetailProject(pData);
       }
       setReports(rData.reports || []);
       setCertificates(Array.isArray(cData) ? cData : []);

@@ -128,31 +128,42 @@ export default function ValidarCertificadoPage() {
           )}
         </div>
 
-        {/* Download Button */}
+        {/* View PDF Button - Opens in new tab (works on all mobile browsers) */}
         {certificate.pdf_url && (
           <a
             href={certificate.pdf_url}
             target="_blank"
             rel="noopener noreferrer"
-            download={`Certificado_${certificate.participant_name.replace(/\s+/g, "_")}.pdf`}
-            style={styles.downloadBtn}
+            style={styles.viewBtn}
           >
-            📥 Descargar Certificado PDF
+            📄 Ver Certificado PDF
           </a>
         )}
 
-        {/* View inline - Mobile Support via Google Docs Viewer */}
+        {/* Download Button - Uses blob fetch for cross-origin mobile download */}
         {certificate.pdf_url && (
-          <div style={styles.pdfPreview}>
-            <iframe
-              src={`https://docs.google.com/viewer?url=${encodeURIComponent(
-                certificate.pdf_url
-              )}&embedded=true`}
-              style={styles.iframe}
-              title="Certificado PDF"
-              frameBorder="0"
-            />
-          </div>
+          <button
+            onClick={async () => {
+              try {
+                const res = await fetch(certificate.pdf_url);
+                const blob = await res.blob();
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = `Certificado_${certificate.participant_name.replace(/\s+/g, "_")}.pdf`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+              } catch {
+                // Fallback: open in new tab
+                window.open(certificate.pdf_url, "_blank");
+              }
+            }}
+            style={styles.downloadBtn}
+          >
+            📥 Descargar Certificado PDF
+          </button>
         )}
 
         {/* Footer */}
@@ -241,11 +252,11 @@ const styles: Record<string, React.CSSProperties> = {
     height: "1px",
     background: "#e5e7eb",
   },
-  downloadBtn: {
+  viewBtn: {
     display: "block",
-    margin: "0 24px 20px",
+    margin: "0 24px 12px",
     padding: "14px 24px",
-    background: "linear-gradient(135deg, #065f46 0%, #047857 100%)",
+    background: "linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)",
     color: "#fff",
     textAlign: "center" as const,
     borderRadius: "10px",
@@ -254,16 +265,20 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: "16px",
     transition: "opacity 0.2s",
   },
-  pdfPreview: {
-    margin: "0 24px 24px",
+  downloadBtn: {
+    display: "block",
+    width: "calc(100% - 48px)",
+    margin: "0 24px 20px",
+    padding: "14px 24px",
+    background: "linear-gradient(135deg, #065f46 0%, #047857 100%)",
+    color: "#fff",
+    textAlign: "center" as const,
     borderRadius: "10px",
-    overflow: "hidden",
-    border: "1px solid #e5e7eb",
-  },
-  iframe: {
-    width: "100%",
-    height: "400px",
     border: "none",
+    cursor: "pointer",
+    fontWeight: "600",
+    fontSize: "16px",
+    transition: "opacity 0.2s",
   },
   footer: {
     textAlign: "center" as const,

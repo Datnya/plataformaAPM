@@ -170,7 +170,13 @@ export default function AdminCertificados() {
     const reader = new FileReader();
     reader.onload = (ev) => {
       const wb = XLSX.read(ev.target?.result, { type: "binary" });
-      const ws = wb.Sheets[wb.SheetNames[0]];
+
+      // Prefer the sheet named "Certificados" (case-insensitive), otherwise use the first sheet
+      const certSheetName = wb.SheetNames.find(
+        (name) => name.toLowerCase().trim() === "certificados"
+      );
+      const sheetName = certSheetName || wb.SheetNames[0];
+      const ws = wb.Sheets[sheetName];
       setExcelData(XLSX.utils.sheet_to_json(ws) as Record<string, unknown>[]);
     };
     reader.readAsBinaryString(file);
@@ -442,17 +448,40 @@ export default function AdminCertificados() {
     for (let i = 0; i < excelData.length; i++) {
       const row = excelData[i];
 
-      const firstName = String(
-        row["Nombres"] ?? row["Nombre"] ?? row["NOMBRES"] ?? row["NOMBRE"] ?? ""
-      ).trim();
-      const lastName = String(
-        row["Apellidos"] ?? row["Apellido"] ?? row["APELLIDOS"] ?? row["APELLIDO"] ?? ""
-      ).trim();
-      const code = String(
-        row["Código"] ?? row["Codigo"] ?? row["CÓDIGO"] ?? row["CODIGO"] ?? row["código"] ?? ""
-      ).trim();
+      // Flexible column matching: normalize keys to compare without accents/case
+      const normalize = (s: string) =>
+        s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
 
-      const fullName = lastName ? `${lastName}, ${firstName}` : firstName;
+      const getVal = (row: Record<string, unknown>, ...candidates: string[]) => {
+        for (const key of Object.keys(row)) {
+          const nk = normalize(key);
+          for (const c of candidates) {
+            if (nk === normalize(c)) return String(row[key] ?? "").trim();
+          }
+        }
+        return "";
+      };
+
+      const apPaterno = getVal(row, "Apellido Paterno", "Apellido paterno", "APELLIDO PATERNO", "Primer Apellido");
+      const apMaterno = getVal(row, "Apellido Materno", "Apellido materno", "APELLIDO MATERNO", "Segundo Apellido");
+      const nombres = getVal(row, "Nombres", "Nombre", "NOMBRES", "NOMBRE");
+      const code = getVal(row, "Códigos", "Codigo", "Código", "Codigos", "CÓDIGOS", "CODIGO", "CODIGOS", "código", "codigos");
+
+      // Also support old format: "Apellidos" (single column) for backwards compatibility
+      const apellidosSingle = getVal(row, "Apellidos", "Apellido", "APELLIDOS", "APELLIDO");
+
+      let fullName = "";
+      if (apPaterno || apMaterno) {
+        // New format: APELLIDO PATERNO APELLIDO MATERNO, NOMBRES
+        const apellidos = [apPaterno, apMaterno].filter(Boolean).join(" ");
+        fullName = nombres ? `${apellidos}, ${nombres}` : apellidos;
+      } else if (apellidosSingle) {
+        // Legacy format: APELLIDOS, NOMBRES
+        fullName = nombres ? `${apellidosSingle}, ${nombres}` : apellidosSingle;
+      } else if (nombres) {
+        fullName = nombres;
+      }
+
       if (!fullName) continue;
 
       const accessKey = crypto.randomUUID();
@@ -738,7 +767,8 @@ export default function AdminCertificados() {
             <Upload className="mx-auto mb-2 opacity-50 text-text-muted" size={32} />
             <p className="font-semibold text-sm mb-1">Importar archivo Excel (.xlsx / .csv)</p>
             <p className="text-xs text-text-muted mb-4">
-              Columnas requeridas: <strong>Nombres</strong>, <strong>Apellidos</strong>, <strong>Código</strong>
+              Columnas requeridas: <strong>Apellido Paterno</strong>, <strong>Apellido Materno</strong>, <strong>Nombres</strong>, <strong>Códigos</strong>
+              <br /><span className="text-text-muted/70">Si el Excel tiene múltiples hojas, se usará la hoja &quot;Certificados&quot;.</span>
             </p>
             <input type="file" accept=".xlsx,.csv" onChange={handleFileUpload}
               className="block w-full text-sm text-text-muted text-center
