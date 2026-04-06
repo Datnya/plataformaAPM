@@ -177,7 +177,26 @@ export default function AdminCertificados() {
       );
       const sheetName = certSheetName || wb.SheetNames[0];
       const ws = wb.Sheets[sheetName];
-      setExcelData(XLSX.utils.sheet_to_json(ws) as Record<string, unknown>[]);
+      
+      // Read as 2D array to find where the actual headers are
+      const rawData = XLSX.utils.sheet_to_json(ws, { header: 1 }) as any[][];
+      const normalize = (s: string) => s ? String(s).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim() : "";
+      
+      let headerRowIndex = 0;
+      for (let i = 0; i < rawData.length; i++) {
+        const row = rawData[i];
+        if (!row || !Array.isArray(row)) continue;
+        
+        const strRow = row.map(v => normalize(String(v)));
+        if (strRow.includes("nombres") || strRow.includes("apellido paterno") || strRow.includes("codigos") || strRow.includes("apellidos")) {
+          headerRowIndex = i;
+          break;
+        }
+      }
+
+      // Parse data starting exactly from the header row
+      const dataObjects = XLSX.utils.sheet_to_json(ws, { range: headerRowIndex });
+      setExcelData(dataObjects as Record<string, unknown>[]);
     };
     reader.readAsBinaryString(file);
   };
