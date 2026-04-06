@@ -62,7 +62,6 @@ export default function AdminProyectos() {
 
   // Debug state for production errors
   const [fetchError, setFetchError] = useState<string | null>(null);
-  const [deletingGroup, setDeletingGroup] = useState<string | null>(null);
 
   // Detail Goals states
   const [showAddGoal, setShowAddGoal] = useState(false);
