@@ -3,8 +3,15 @@ import { getSupabaseAdmin } from "@/lib/supabase/admin";
 
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
+    let supabaseAdmin;
+    try {
+      supabaseAdmin = getSupabaseAdmin();
+    } catch (envErr: any) {
+      console.error("Certificates: supabaseAdmin init failed:", envErr.message);
+      return NextResponse.json({ error: envErr.message }, { status: 500 });
+    }
+
     const { id } = await params;
-    const supabaseAdmin = getSupabaseAdmin();
     const { data: certificates, error } = await supabaseAdmin
       .from("certificates")
       .select("*")
@@ -15,7 +22,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     
     return NextResponse.json(certificates || []);
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    console.error("Certificates GET error:", err);
+    const msg = err.message || "Error desconocido";
+    return NextResponse.json({ error: `Certificates error: ${msg}` }, { status: 500 });
   }
 }
 

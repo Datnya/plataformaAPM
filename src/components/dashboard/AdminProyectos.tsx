@@ -107,22 +107,10 @@ export default function AdminProyectos() {
     setView("detail");
     setFetchError(null);
     try {
-      const [pRes, rRes, cRes] = await Promise.all([
-        fetch(`/api/projects/${projectId}`),
-        consId ? fetch(`/api/consultant/reports?consultantId=${consId}&projectId=${projectId}`) : null,
-        fetch(`/api/projects/${projectId}/certificates`)
-      ]);
-
-      // Check HTTP status before parsing
+      // Project data is critical - must succeed
+      const pRes = await fetch(`/api/projects/${projectId}`);
       if (!pRes.ok) throw new Error(`Error al cargar proyecto (${pRes.status})`);
-      if (rRes && !rRes.ok) throw new Error(`Error al cargar reportes (${rRes.status})`);
-      if (!cRes.ok) throw new Error(`Error al cargar certificados (${cRes.status})`);
-
-      const [pData, rData, cData] = await Promise.all([
-        pRes.json(),
-        rRes ? rRes.json() : { reports: [] },
-        cRes.json()
-      ]);
+      const pData = await pRes.json();
 
       if (pData.error) {
         setFetchError(pData.error);
@@ -130,8 +118,29 @@ export default function AdminProyectos() {
       } else {
         setDetailProject(pData);
       }
-      setReports(rData.reports || []);
-      setCertificates(Array.isArray(cData) ? cData : []);
+
+      // Reports - optional, don't block
+      try {
+        if (consId) {
+          const rRes = await fetch(`/api/consultant/reports?consultantId=${consId}&projectId=${projectId}`);
+          const rData = rRes.ok ? await rRes.json() : { reports: [] };
+          setReports(rData.reports || []);
+        } else {
+          setReports([]);
+        }
+      } catch { setReports([]); }
+
+      // Certificates - optional, don't block
+      try {
+        const cRes = await fetch(`/api/projects/${projectId}/certificates`);
+        if (cRes.ok) {
+          const cData = await cRes.json();
+          setCertificates(Array.isArray(cData) ? cData : []);
+        } else {
+          console.warn("Certificates API returned", cRes.status);
+          setCertificates([]);
+        }
+      } catch { setCertificates([]); }
       
     } catch (error: any) {
        console.error(error);
