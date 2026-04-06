@@ -106,16 +106,30 @@ export default function AdminProyectos() {
     setDetailLoading(true);
     setView("detail");
     try {
-      // Fetch full project, reports, and certificates
       const [pRes, rRes, cRes] = await Promise.all([
         fetch(`/api/projects/${projectId}`),
-        consId ? fetch(`/api/consultant/reports?consultantId=${consId}&projectId=${projectId}`) : Promise.resolve({ json: () => ({ reports: [] }) }),
+        consId ? fetch(`/api/consultant/reports?consultantId=${consId}&projectId=${projectId}`) : Promise.resolve({ text: () => JSON.stringify({ reports: [] }) }),
         fetch(`/api/projects/${projectId}/certificates`)
       ]);
 
-      const pData = await pRes.json();
-      const rData = await rRes.json();
-      const cData = await cRes.json();
+      const [pText, rText, cText] = await Promise.all([pRes.text(), rRes.text(), cRes.text()]);
+
+      let pData, rData, cData;
+      try {
+        pData = JSON.parse(pText);
+      } catch (err) {
+        throw new Error(`Project API returned invalid JSON: ${pText.substring(0, 500)}`);
+      }
+      try {
+        rData = JSON.parse(rText);
+      } catch (err) {
+        throw new Error(`Reports API returned invalid JSON: ${rText.substring(0, 500)}`);
+      }
+      try {
+        cData = JSON.parse(cText);
+      } catch (err) {
+        throw new Error(`Certificates API returned invalid JSON: ${cText.substring(0, 500)}`);
+      }
 
       if (pData.error) {
          setFetchError(pData.error);
