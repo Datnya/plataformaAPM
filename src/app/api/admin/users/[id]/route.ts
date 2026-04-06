@@ -65,7 +65,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
 
     // Si tuvieras el Key:
     // const supabaseAdmin = createClient(URL, KEY);
-    // await supabaseAdmin.auth.admin.deleteUser(id);
+    // await getSupabaseAdmin().auth.admin.deleteUser(id);
     
     return NextResponse.json({ error: "Funcionalidad pausada hasta tener Service Role." }, { status: 501 });
   } catch (error) {
