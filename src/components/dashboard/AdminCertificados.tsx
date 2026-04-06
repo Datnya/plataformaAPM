@@ -586,6 +586,52 @@ export default function AdminCertificados() {
   };
 
   /* ── Signature management ───────────────────────────────── */
+  const processSignatureImage = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement("canvas");
+          const ctx = canvas.getContext("2d");
+          if (!ctx) return reject("No canvas context");
+
+          canvas.width = img.width;
+          canvas.height = img.height;
+          ctx.drawImage(img, 0, 0);
+
+          const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          const data = imageData.data;
+
+          for (let i = 0; i < data.length; i += 4) {
+            const r = data[i];
+            const g = data[i + 1];
+            const b = data[i + 2];
+            
+            // Si es blanco o casi blanco, hacerlo transparente
+            if (r > 180 && g > 180 && b > 180) {
+              data[i + 3] = 0;
+            } else {
+              // Convertir el resto (la firma) a negro sólido y completamente opaco
+              data[i] = 0;     // R
+              data[i + 1] = 0; // G
+              data[i + 2] = 0; // B
+              data[i + 3] = 255; // Alpha
+            }
+          }
+
+          ctx.putImageData(imageData, 0, 0);
+          const dataUrl = canvas.toDataURL("image/png");
+          resolve(dataUrl.split(",")[1]);
+        };
+        img.onerror = () => reject("Error al cargar imagen en canvas");
+        img.src = e.target?.result as string;
+      };
+      reader.onerror = () => reject("Error al leer archivo");
+      reader.readAsDataURL(file);
+    });
+  };
+
   const handleUploadSig = async () => {
     if (!newSigName || !newSigFile) {
       alert("Ingresa el nombre y selecciona la imagen de la firma.");
@@ -593,7 +639,7 @@ export default function AdminCertificados() {
     }
     setUploadingSig(true);
     try {
-      const b64 = await blobToBase64(newSigFile);
+      const b64 = await processSignatureImage(newSigFile);
       const res = await fetch("/api/admin/signatures", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
