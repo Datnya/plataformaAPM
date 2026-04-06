@@ -146,6 +146,9 @@ export default function AdminCertificados() {
     const projData = await projRes.json();
     const sigData = await sigRes.json();
 
+    if (!Array.isArray(projData)) console.error("Projects API error:", projData);
+    if (!Array.isArray(sigData)) console.error("Signatures API error:", sigData);
+
     const projs = Array.isArray(projData) ? projData : [];
     const sigs = Array.isArray(sigData) ? sigData : [];
 

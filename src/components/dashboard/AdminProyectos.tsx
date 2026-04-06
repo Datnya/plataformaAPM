@@ -73,9 +73,17 @@ export default function AdminProyectos() {
         fetch("/api/projects"),
         fetch("/api/admin/users")
       ]);
-      setProjects(await projRes.json());
-      setUsers(await usersRes.json());
-    } catch {}
+      const projData = await projRes.json();
+      const usersData = await usersRes.json();
+      
+      if (!Array.isArray(projData)) console.error("Projects API error:", projData);
+      if (!Array.isArray(usersData)) console.error("Users API error:", usersData);
+
+      setProjects(Array.isArray(projData) ? projData : []);
+      setUsers(Array.isArray(usersData) ? usersData : []);
+    } catch (e) {
+      console.error("Fetch API error:", e);
+    }
     setLoading(false);
   };
 
