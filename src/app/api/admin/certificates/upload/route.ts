@@ -24,22 +24,24 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Faltan campos requeridos" }, { status: 400 });
     }
 
+    const supabase = getSupabaseAdmin();
+
     // Upload PDF to Supabase Storage
     const buffer = Buffer.from(await pdfFile.arrayBuffer());
     const filePath = `pdfs/${projectId}/${accessKey}.pdf`;
 
-    const { error: uploadError } = await getSupabaseAdmin().storage
+    const { error: uploadError } = await supabase.storage
       .from("certificados")
       .upload(filePath, buffer, { contentType: "application/pdf", upsert: true });
 
     if (uploadError) throw uploadError;
 
-    const { data: urlData } = getSupabaseAdmin().storage
+    const { data: urlData } = supabase.storage
       .from("certificados")
       .getPublicUrl(filePath);
 
     // Save certificate record to DB
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await supabase
       .from("certificates")
       .insert({
         id: accessKey,

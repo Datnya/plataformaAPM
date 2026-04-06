@@ -8,7 +8,8 @@ export async function GET() {
     const auth = await requireRole(["ADMIN"]);
     if ("error" in auth) return auth.error;
 
-    const { data, error } = await supabaseAdmin
+    const supabase = getSupabaseAdmin();
+    const { data, error } = await supabase
       .from("consultant_signatures")
       .select("id, name, cargo, signature_url, is_gerente, created_at")
       .order("is_gerente", { ascending: false });
@@ -31,33 +32,35 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Faltan campos requeridos" }, { status: 400 });
     }
 
+    const supabase = getSupabaseAdmin();
+
     // Convert base64 to buffer
     const buffer = Buffer.from(base64Image, "base64");
     const sigId = crypto.randomUUID();
     const filePath = `firmas/${sigId}.png`;
 
     // Upload to Supabase Storage (bucket: certificados)
-    const { error: uploadError } = await getSupabaseAdmin().storage
+    const { error: uploadError } = await supabase.storage
       .from("certificados")
       .upload(filePath, buffer, { contentType: "image/png", upsert: true });
 
     if (uploadError) throw uploadError;
 
     // Get public URL
-    const { data: urlData } = getSupabaseAdmin().storage
+    const { data: urlData } = supabase.storage
       .from("certificados")
       .getPublicUrl(filePath);
 
     // If marking as gerente, unmark previous gerente
     if (isGerente) {
-      await supabaseAdmin
+      await supabase
         .from("consultant_signatures")
         .update({ is_gerente: false })
         .eq("is_gerente", true);
     }
 
     // Insert record
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await supabase
       .from("consultant_signatures")
       .insert({
         id: sigId,
@@ -86,13 +89,15 @@ export async function DELETE(req: Request) {
     const id = searchParams.get("id");
     if (!id) return NextResponse.json({ error: "ID requerido" }, { status: 400 });
 
+    const supabase = getSupabaseAdmin();
+
     // Delete from storage
-    await getSupabaseAdmin().storage
+    await supabase.storage
       .from("certificados")
       .remove([`firmas/${id}.png`]);
 
     // Delete from DB
-    const { error } = await supabaseAdmin
+    const { error } = await supabase
       .from("consultant_signatures")
       .delete()
       .eq("id", id);
@@ -110,18 +115,19 @@ export async function PATCH(req: Request) {
     const auth = await requireRole(["ADMIN"]);
     if ("error" in auth) return auth.error;
 
+    const supabase = getSupabaseAdmin();
     const { id, isGerente } = await req.json();
     if (!id) return NextResponse.json({ error: "ID requerido" }, { status: 400 });
 
     // Unmark previous gerente if setting a new one
     if (isGerente) {
-      await supabaseAdmin
+      await supabase
         .from("consultant_signatures")
         .update({ is_gerente: false })
         .eq("is_gerente", true);
     }
 
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await supabase
       .from("consultant_signatures")
       .update({ is_gerente: isGerente })
       .eq("id", id)
