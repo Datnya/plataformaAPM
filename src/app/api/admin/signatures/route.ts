@@ -29,12 +29,17 @@ export async function POST(req: Request) {
 
     const { name, cargo, base64Image, isGerente } = await req.json();
     if (!name || !base64Image) {
-      return NextResponse.json({ error: "Faltan campos requeridos" }, { status: 400 });
+      return NextResponse.json({ error: "Faltan campos requeridos (name y base64Image)" }, { status: 400 });
     }
 
-    const supabase = getSupabaseAdmin();
+    let supabase;
+    try {
+      supabase = getSupabaseAdmin();
+    } catch (envErr: any) {
+      return NextResponse.json({ error: `Config error: ${envErr.message}` }, { status: 500 });
+    }
 
-    // Convert base64 to buffer
+    // Convert base64 to buffer - detect content type
     const buffer = Buffer.from(base64Image, "base64");
     const sigId = crypto.randomUUID();
     const filePath = `firmas/${sigId}.png`;
@@ -44,7 +49,10 @@ export async function POST(req: Request) {
       .from("certificados")
       .upload(filePath, buffer, { contentType: "image/png", upsert: true });
 
-    if (uploadError) throw uploadError;
+    if (uploadError) {
+      console.error("Storage upload failed:", uploadError);
+      return NextResponse.json({ error: `Upload error: ${uploadError.message}` }, { status: 500 });
+    }
 
     // Get public URL
     const { data: urlData } = supabase.storage
@@ -72,11 +80,14 @@ export async function POST(req: Request) {
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) {
+      console.error("DB insert failed:", error);
+      return NextResponse.json({ error: `DB error: ${error.message}` }, { status: 500 });
+    }
     return NextResponse.json(data);
-  } catch (error) {
+  } catch (error: any) {
     console.error("Signatures POST error:", error);
-    return NextResponse.json({ error: "Error saving signature" }, { status: 500 });
+    return NextResponse.json({ error: `Error saving signature: ${error.message || JSON.stringify(error)}` }, { status: 500 });
   }
 }
 
