@@ -60,6 +60,10 @@ export default function AdminProyectos() {
   const [showCertModal, setShowCertModal] = useState(false);
   const [deletingGroup, setDeletingGroup] = useState<string | null>(null);
 
+  // Debug state for production errors
+  const [fetchError, setFetchError] = useState<string | null>(null);
+  const [deletingGroup, setDeletingGroup] = useState<string | null>(null);
+
   // Detail Goals states
   const [showAddGoal, setShowAddGoal] = useState(false);
   const [goalDesc, setGoalDesc] = useState("");
@@ -81,8 +85,10 @@ export default function AdminProyectos() {
 
       setProjects(Array.isArray(projData) ? projData : []);
       setUsers(Array.isArray(usersData) ? usersData : []);
-    } catch (e) {
+      setFetchError(null);
+    } catch (e: any) {
       console.error("Fetch API error:", e);
+      setFetchError(e.message || JSON.stringify(e));
     }
     setLoading(false);
   };
@@ -112,12 +118,19 @@ export default function AdminProyectos() {
       const rData = await rRes.json();
       const cData = await cRes.json();
 
-      setDetailProject(pData && !pData.error ? pData : null);
+      if (pData.error) {
+         setFetchError(pData.error);
+         setDetailProject(null);
+      } else {
+         setFetchError(null);
+         setDetailProject(pData);
+      }
       setReports(rData.reports || []);
       setCertificates(Array.isArray(cData) ? cData : []);
       
-    } catch (error) {
+    } catch (error: any) {
        console.error(error);
+       setFetchError(error.message || JSON.stringify(error));
     }
     setDetailLoading(false);
   };
@@ -313,10 +326,43 @@ export default function AdminProyectos() {
   };
 
   if (view === "detail") {
-    if (detailLoading || !detailProject) {
+    if (detailLoading) {
       return (
         <div className="flex items-center justify-center p-16 text-text-muted gap-3 animate-fade-in">
            <Loader2 size={24} className="animate-spin" /> Cargando detalle del proyecto...
+        </div>
+      );
+    }
+
+    if (fetchError) {
+      return (
+        <div className="p-6">
+          <button onClick={openList} className="flex items-center text-text-muted hover:text-brand mb-6 transition-colors">
+            <ArrowLeft className="h-5 w-5 mr-2" />
+            Volver
+          </button>
+          <div className="bg-red-500/10 border border-red-500/30 text-red-500 p-4 rounded-xl">
+            <h3 className="font-bold text-lg mb-2">Error de conexión con Base de Datos o API</h3>
+            <p className="font-mono text-sm whitespace-pre-wrap">{fetchError}</p>
+            <p className="mt-4 text-xs opacity-80">
+              Vercel deploy check:
+              1. ¿Están configuradas las variables de entorno de Supabase? (NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
+              2. ¿Se ejecutó el prisma generate?
+              3. ¿Existe timeout de Vercel (10s)?
+            </p>
+          </div>
+        </div>
+      );
+    }
+
+    if (!detailProject) {
+      return (
+        <div className="flex flex-col items-center justify-center p-16 text-text-muted gap-4 animate-fade-in">
+           <p className="text-danger font-bold text-xl">Error Fatal</p>
+           <p className="text-sm">El proyecto dejó de cargar sin error explícito.</p>
+           <button onClick={openList} className="btn-secondary px-4 py-2 mt-4 text-sm flex items-center gap-2">
+             <ArrowLeft size={16}/> Volver al listado
+           </button>
         </div>
       );
     }
@@ -713,7 +759,13 @@ export default function AdminProyectos() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {loading ? (
+        {fetchError ? (
+          <div className="col-span-full p-6 bg-red-500/10 border border-red-500/30 text-red-500 rounded-xl relative">
+             <h3 className="font-bold mb-2 flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-red-500"></div> Error de Fetch (Proyectos)</h3>
+             <pre className="font-mono text-xs whitespace-pre-wrap bg-red-500/5 p-3 rounded">{fetchError}</pre>
+             <button onClick={fetchData} className="mt-3 px-3 py-1.5 bg-red-500/20 hover:bg-red-500/30 text-red-600 rounded text-xs font-bold transition-colors">Reintentar Conexión</button>
+          </div>
+        ) : loading ? (
           <div className="col-span-full p-8 flex items-center justify-center gap-2 text-text-muted">
             <Loader2 size={18} className="animate-spin" /> Cargando proyectos...
           </div>
