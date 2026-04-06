@@ -32,10 +32,12 @@ export async function proxy(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  // Protect API routes (except auth endpoints)
+  // Protect API routes (except auth and public endpoints)
   if (request.nextUrl.pathname.startsWith("/api/")) {
     const isAuthRoute = request.nextUrl.pathname.startsWith("/api/auth/");
-    if (!isAuthRoute && !user) {
+    const isPublicCertRoute = request.nextUrl.pathname.startsWith("/api/certificates/validate/");
+    
+    if (!isAuthRoute && !isPublicCertRoute && !user) {
       return NextResponse.json(
         { error: "No autenticado. Inicia sesion primero." },
         { status: 401 }

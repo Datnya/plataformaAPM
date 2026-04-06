@@ -180,7 +180,7 @@ export default function AdminCertificados() {
       
       // Read as 2D array to find where the actual headers are
       const rawData = XLSX.utils.sheet_to_json(ws, { header: 1 }) as any[][];
-      const normalize = (s: string) => s ? String(s).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim() : "";
+      const normalize = (s: string) => s ? String(s).normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, " ").toLowerCase().trim() : "";
       
       let headerRowIndex = 0;
       for (let i = 0; i < rawData.length; i++) {
@@ -469,7 +469,7 @@ export default function AdminCertificados() {
 
       // Flexible column matching: normalize keys to compare without accents/case
       const normalize = (s: string) =>
-        s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+        s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, " ").toLowerCase().trim();
 
       const getVal = (row: Record<string, unknown>, ...candidates: string[]) => {
         for (const key of Object.keys(row)) {
