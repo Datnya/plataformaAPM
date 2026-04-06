@@ -46,7 +46,7 @@ export async function POST(req: NextRequest) {
 
     // This is the architecture pattern to implement once key is added:
     // const supabaseAdmin = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, supabaseKey, { auth: { autoRefreshToken: false, persistSession: false } });
-    // const { data, error } = await supabaseAdmin.auth.admin.createUser({ email, password, email_confirm: true, user_metadata: { role, name } });
+    // const { data, error } = await getSupabaseAdmin().auth.admin.createUser({ email, password, email_confirm: true, user_metadata: { role, name } });
     
     return NextResponse.json({ 
       error: "Funcionalidad de creación en pausa hasta configurar Service Role." 

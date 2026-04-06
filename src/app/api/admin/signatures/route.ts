@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { requireRole } from "@/lib/auth-guard";
-import { supabaseAdmin } from "@/lib/supabase/admin";
+import { getSupabaseAdmin } from "@/lib/supabase/admin";
 
 export async function GET() {
   try {
@@ -37,14 +37,14 @@ export async function POST(req: Request) {
     const filePath = `firmas/${sigId}.png`;
 
     // Upload to Supabase Storage (bucket: certificados)
-    const { error: uploadError } = await supabaseAdmin.storage
+    const { error: uploadError } = await getSupabaseAdmin().storage
       .from("certificados")
       .upload(filePath, buffer, { contentType: "image/png", upsert: true });
 
     if (uploadError) throw uploadError;
 
     // Get public URL
-    const { data: urlData } = supabaseAdmin.storage
+    const { data: urlData } = getSupabaseAdmin().storage
       .from("certificados")
       .getPublicUrl(filePath);
 
@@ -87,7 +87,7 @@ export async function DELETE(req: Request) {
     if (!id) return NextResponse.json({ error: "ID requerido" }, { status: 400 });
 
     // Delete from storage
-    await supabaseAdmin.storage
+    await getSupabaseAdmin().storage
       .from("certificados")
       .remove([`firmas/${id}.png`]);
 

@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { requireRole } from "@/lib/auth-guard";
-import { supabaseAdmin } from "@/lib/supabase/admin";
+import { getSupabaseAdmin } from "@/lib/supabase/admin";
 
 export async function POST(req: Request) {
   try {
@@ -28,13 +28,13 @@ export async function POST(req: Request) {
     const buffer = Buffer.from(await pdfFile.arrayBuffer());
     const filePath = `pdfs/${projectId}/${accessKey}.pdf`;
 
-    const { error: uploadError } = await supabaseAdmin.storage
+    const { error: uploadError } = await getSupabaseAdmin().storage
       .from("certificados")
       .upload(filePath, buffer, { contentType: "application/pdf", upsert: true });
 
     if (uploadError) throw uploadError;
 
-    const { data: urlData } = supabaseAdmin.storage
+    const { data: urlData } = getSupabaseAdmin().storage
       .from("certificados")
       .getPublicUrl(filePath);
 

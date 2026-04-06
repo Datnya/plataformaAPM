@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabase/admin";
+import { getSupabaseAdmin } from "@/lib/supabase/admin";
 
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
+    const supabaseAdmin = getSupabaseAdmin();
     const { data: certificates, error } = await supabaseAdmin
       .from("certificates")
       .select("*")
@@ -29,6 +30,7 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
     }
 
     // 1. Fetch certificates to find access keys and paths
+    const supabaseAdmin = getSupabaseAdmin();
     const { data: certs, error: fetchError } = await supabaseAdmin
       .from("certificates")
       .select("access_key")
