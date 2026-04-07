@@ -328,9 +328,9 @@ export default function AdminCertificados() {
       const dataText = `Duración: ${duration}     |     Fecha: ${issueDate}`;
       drawText(dataText, CX, dataLineY, 11, "#374151", fontItalic);
 
-      // ── Sello APM on the LEFT (bigger, 2cm higher) ──
+      // ── Sello APM on the LEFT ──
       const SELLO_CX = 45;
-      const SELLO_CY = 90;
+      const SELLO_CY = 120;
       const SELLO_W = 55;
       try {
         const selloRes = await fetch("/sello-apm-v2.png");
