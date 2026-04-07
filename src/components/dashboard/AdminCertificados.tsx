@@ -128,6 +128,7 @@ export default function AdminCertificados() {
   // Guardar a proyecto
   const [savingToProject, setSavingToProject] = useState(false);
   const [isSavedToProject, setIsSavedToProject] = useState(false);
+  const [isZipping, setIsZipping] = useState(false); // Added for ZIP building state
   // New signature form
   const [newSigName, setNewSigName] = useState("");
   const [newSigCargo, setNewSigCargo] = useState("");
@@ -410,8 +411,8 @@ export default function AdminCertificados() {
 
       if (gerenteSig?.signature_url) {
         const img = await embedSigImage(gerenteSig.signature_url);
-        // Gerente is scaled slightly larger as requested
-        if (img) drawImageCenter(img, SIG_LEFT_CX, SIG_CENTER_Y, SIG_W_MM * 1.15);
+        // Gerente is scaled 2cm larger (approx +20mm)
+        if (img) drawImageCenter(img, SIG_LEFT_CX, SIG_CENTER_Y, SIG_W_MM + 20);
       }
 
       if (consultorSig?.signature_url) {
@@ -442,8 +443,8 @@ export default function AdminCertificados() {
       if (gerenteSig) drawText(gerenteSig.cargo || "Gerente General", SIG_LEFT_CX, sigCargoY, 15, "#6b7280", fontNormal);
       if (consultorSig) drawText(consultorSig.cargo || "Consultor", SIG_RIGHT_CX, sigCargoY, 15, "#6b7280", fontNormal);
 
-      // Código at bottom right
-      drawText(`Código: ${participantCode}`, PAGE_W_MM - 40, sigCargoY, 15, "#374151", fontNormal);
+      // Código at bottom right (shifted left so it doesn't hit right edge for long codes)
+      drawText(`Código: ${participantCode}`, PAGE_W_MM - 60, sigCargoY, 15, "#374151", fontNormal);
 
       const pdfBytesFinal = await doc.save();
       return new Blob([pdfBytesFinal.buffer as ArrayBuffer], { type: "application/pdf" });
@@ -614,24 +615,29 @@ export default function AdminCertificados() {
 
   /* ── Download all as ZIP ────────────────────────────────── */
   const downloadZip = async () => {
-    const JSZip = (await import("jszip")).default;
-    const { saveAs } = await import("file-saver");
-    const zip = new JSZip();
+    setIsZipping(true);
+    try {
+      const JSZip = (await import("jszip")).default;
+      const { saveAs } = await import("file-saver");
+      const zip = new JSZip();
 
-    const formattedDate = issueDate
-      ? issueDate.replace(/[/\\:*?"<>|]/g, "-").trim()
-      : "sin-fecha";
+      const formattedDate = issueDate
+        ? issueDate.replace(/[/\\:*?"<>|]/g, "-").trim()
+        : "sin-fecha";
 
-    const folderName = `Certificados ${formattedDate}`;
-    const folder = zip.folder(folderName) ?? zip;
+      const folderName = `Certificados ${formattedDate}`;
+      const folder = zip.folder(folderName) ?? zip;
 
-    for (const c of results) {
-      const blob = await generatePDF(c.name, c.code, c.accessKey);
-      if (blob) folder.file(`${c.name} - ${c.code}.pdf`, blob);
+      for (const c of results) {
+        const blob = await generatePDF(c.name, c.code, c.accessKey);
+        if (blob) folder.file(`${c.name} - ${c.code}.pdf`, blob);
+      }
+
+      const content = await zip.generateAsync({ type: "blob" });
+      saveAs(content, `${folderName}.zip`);
+    } finally {
+      setIsZipping(false);
     }
-
-    const content = await zip.generateAsync({ type: "blob" });
-    saveAs(content, `${folderName}.zip`);
   };
 
   /* ── Signature management ───────────────────────────────── */
@@ -1022,9 +1028,12 @@ export default function AdminCertificados() {
 
             {/* Download all button */}
             <div className="px-6 pt-4 pb-2 flex gap-3 justify-start items-center">
-              <button onClick={downloadZip}
-                className="btn-secondary py-2.5 px-5 text-sm font-bold flex items-center gap-2 shadow-sm bg-white hover:bg-surface transition-colors">
-                <FileDown size={18} className="text-primary"/> Descargar ZIP
+              <button 
+                onClick={downloadZip}
+                disabled={isZipping}
+                className="btn-secondary py-2.5 px-5 text-sm font-bold flex items-center gap-2 shadow-sm bg-white hover:bg-surface transition-all disabled:opacity-75 disabled:cursor-wait">
+                {isZipping ? <Loader2 size={18} className="text-primary animate-spin" /> : <FileDown size={18} className="text-primary" />}
+                {isZipping ? "Empaquetando..." : "Descargar ZIP"}
               </button>
               
               {isSavedToProject ? (
