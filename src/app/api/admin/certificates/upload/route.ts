@@ -8,21 +8,14 @@ export async function POST(req: Request) {
     const auth = await requireRole(["ADMIN"]);
     if ("error" in auth) return auth.error;
 
-    const formData = await req.formData();
+    const body = await req.json();
 
-    const projectId       = formData.get("projectId") as string;
-    const courseTitle      = formData.get("courseTitle") as string;
-    const duration         = formData.get("duration") as string;
-    const issueDate        = formData.get("issueDate") as string;
-    const normas           = formData.get("normas") as string | null;
-    const participantName  = formData.get("participantName") as string;
-    const participantCode  = formData.get("participantCode") as string;
-    const accessKey        = formData.get("accessKey") as string;
-    const pdfFile          = formData.get("pdf") as File | null;
+    const { projectId, courseTitle, duration, issueDate, normas,
+            participantName, participantCode, accessKey, pdfUrl } = body;
 
-    if (!projectId || !courseTitle || !participantName || !accessKey || !pdfFile) {
+    if (!projectId || !courseTitle || !participantName || !accessKey || !pdfUrl) {
       return NextResponse.json(
-        { error: "Faltan campos requeridos", detail: { projectId: !!projectId, courseTitle: !!courseTitle, participantName: !!participantName, accessKey: !!accessKey, pdfFile: !!pdfFile } },
+        { error: "Faltan campos requeridos", detail: { projectId: !!projectId, courseTitle: !!courseTitle, participantName: !!participantName, accessKey: !!accessKey, pdfUrl: !!pdfUrl } },
         { status: 400 }
       );
     }
@@ -37,44 +30,21 @@ export async function POST(req: Request) {
       );
     }
 
-    // Step 1: Upload PDF to Supabase Storage
-    const buffer = Buffer.from(await pdfFile.arrayBuffer());
-    const filePath = `pdfs/${projectId}/${accessKey}.pdf`;
-
-    const { error: uploadError } = await supabase.storage
-      .from("certificados")
-      .upload(filePath, buffer, { contentType: "application/pdf", upsert: true });
-
-    if (uploadError) {
-      console.error("Storage upload error:", uploadError);
-      return NextResponse.json(
-        { error: `Error subiendo PDF: ${uploadError.message}` },
-        { status: 500 }
-      );
-    }
-
-    // Step 2: Get public URL
-    const { data: urlData } = supabase.storage
-      .from("certificados")
-      .getPublicUrl(filePath);
-
-    // Step 3: Save certificate record to DB (upsert to handle retries)
-    const certRecord = {
-      id: accessKey,
-      project_id: Number(projectId),
-      course_title: courseTitle,
-      participant_name: participantName,
-      participant_code: participantCode || "",
-      duration: duration || "",
-      issue_date: issueDate || "",
-      normas: normas || null,
-      pdf_url: urlData.publicUrl,
-      access_key: accessKey,
-    };
-
+    // Upsert certificate record (handles retries gracefully)
     const { data, error } = await supabase
       .from("certificates")
-      .upsert(certRecord, { onConflict: "id" })
+      .upsert({
+        id: accessKey,
+        project_id: Number(projectId),
+        course_title: courseTitle,
+        participant_name: participantName,
+        participant_code: participantCode || "",
+        duration: duration || "",
+        issue_date: issueDate || "",
+        normas: normas || null,
+        pdf_url: pdfUrl,
+        access_key: accessKey,
+      }, { onConflict: "id" })
       .select()
       .single();
 
@@ -88,7 +58,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ success: true, certificate: data });
   } catch (error) {
-    console.error("Certificate upload error:", error);
+    console.error("Certificate save error:", error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Error saving certificate" },
       { status: 500 }

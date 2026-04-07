@@ -6,6 +6,7 @@ import {
   Trash2, Plus, X, Download, FileDown, Star, Eye, Save
 } from "lucide-react";
 import * as XLSX from "xlsx";
+import { createClient as createBrowserSupabase } from "@/lib/supabase/client";
 
 /* ─── Types ─────────────────────────────────────────────── */
 interface Signature {
@@ -526,42 +527,62 @@ export default function AdminCertificados() {
     setSavingToProject(true);
     let errorCount = 0;
     let lastError = "";
+    const supabaseClient = createBrowserSupabase();
 
     for (let i = 0; i < results.length; i++) {
       const cert = results[i];
       try {
-        const formData = new FormData();
-        formData.append("projectId", selectedProject);
-        formData.append("courseTitle", courseTitle);
-        formData.append("duration", duration);
-        formData.append("issueDate", issueDate);
-        formData.append("normas", normasText);
-        formData.append("participantName", cert.name);
-        formData.append("participantCode", cert.code);
-        formData.append("accessKey", cert.accessKey);
-
+        // Step 1: Ensure we have a PDF blob
         let blobToUpload = cert.pdfBlob;
         if (!blobToUpload) {
           blobToUpload = await generatePDF(cert.name, cert.code, cert.accessKey) || undefined;
           if (!blobToUpload) { errorCount++; lastError = "No se pudo generar el PDF"; continue; }
         }
 
-        formData.append("pdf", blobToUpload, `${cert.name}.pdf`);
+        // Step 2: Upload PDF directly to Supabase Storage (bypasses Vercel 4.5MB limit)
+        const filePath = `pdfs/${selectedProject}/${cert.accessKey}.pdf`;
+        const { error: storageError } = await supabaseClient.storage
+          .from("certificados")
+          .upload(filePath, blobToUpload, { contentType: "application/pdf", upsert: true });
 
+        if (storageError) {
+          lastError = `Storage: ${storageError.message}`;
+          console.error(`Error subiendo PDF ${i + 1}:`, storageError);
+          errorCount++;
+          continue;
+        }
+
+        // Step 3: Get the public URL
+        const { data: urlData } = supabaseClient.storage
+          .from("certificados")
+          .getPublicUrl(filePath);
+
+        // Step 4: Save metadata via API (lightweight JSON, no file)
         const res = await fetch("/api/admin/certificates/upload", {
           method: "POST",
-          body: formData,
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            projectId: selectedProject,
+            courseTitle,
+            duration,
+            issueDate,
+            normas: normasText,
+            participantName: cert.name,
+            participantCode: cert.code,
+            accessKey: cert.accessKey,
+            pdfUrl: urlData.publicUrl,
+          }),
         });
 
         if (!res.ok) {
           const data = await res.json().catch(() => ({}));
           lastError = data.error || `HTTP ${res.status}`;
-          console.error(`Error guardando cert ${i + 1}/${results.length}:`, data);
+          console.error(`Error guardando metadata ${i + 1}/${results.length}:`, data);
           errorCount++;
         }
       } catch (e) {
         lastError = e instanceof Error ? e.message : "Error de conexión";
-        console.error(`Error conexión cert ${i + 1}:`, e);
+        console.error(`Error cert ${i + 1}:`, e);
         errorCount++;
       }
     }
