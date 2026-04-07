@@ -1,6 +1,8 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
+import { Eye, Download, CheckCircle2, XCircle } from "lucide-react";
+import Image from "next/image";
 
 interface CertificateData {
   id: string;
@@ -40,14 +42,7 @@ export default function ValidarCertificadoPage() {
     })();
   }, [accessKey]);
 
-  const formattedDate = certificate?.issue_date
-    ? new Date(certificate.issue_date).toLocaleDateString("es-PE", {
-        day: "2-digit",
-        month: "long",
-        year: "numeric",
-        timeZone: "UTC",
-      })
-    : "";
+  // Date removed per user request
 
   if (loading) {
     return (
@@ -64,7 +59,9 @@ export default function ValidarCertificadoPage() {
     return (
       <div style={styles.container}>
         <div style={styles.card}>
-          <div style={styles.errorIcon}>✕</div>
+          <div style={styles.errorIcon}>
+            <XCircle size={32} />
+          </div>
           <h1 style={styles.errorTitle}>Certificado no encontrado</h1>
           <p style={styles.errorText}>
             {error || "El enlace no corresponde a un certificado válido."}
@@ -79,7 +76,12 @@ export default function ValidarCertificadoPage() {
       <div style={styles.card}>
         {/* Header */}
         <div style={styles.header}>
-          <div style={styles.checkIcon}>✓</div>
+          <div style={styles.logoContainer}>
+            <Image src="/logo-apm.png" alt="APM Group Logo" width={140} height={50} style={{ objectFit: 'contain' }} priority />
+          </div>
+          <div style={styles.checkIcon}>
+            <CheckCircle2 size={32} />
+          </div>
           <h1 style={styles.title}>Certificado Válido</h1>
           <p style={styles.subtitle}>
             Este certificado ha sido verificado por APM Group
@@ -110,12 +112,6 @@ export default function ValidarCertificadoPage() {
             <span style={styles.label}>Duración</span>
             <span style={styles.value}>{certificate.duration}</span>
           </div>
-          <div style={styles.divider} />
-
-          <div style={styles.row}>
-            <span style={styles.label}>Fecha de emisión</span>
-            <span style={styles.value}>{formattedDate}</span>
-          </div>
 
           {certificate.normas && (
             <>
@@ -136,7 +132,8 @@ export default function ValidarCertificadoPage() {
             rel="noopener noreferrer"
             style={styles.viewBtn}
           >
-            📄 Ver Certificado PDF
+            <Eye size={20} />
+            <span>Ver Certificado PDF</span>
           </a>
         )}
 
@@ -162,7 +159,8 @@ export default function ValidarCertificadoPage() {
             }}
             style={styles.downloadBtn}
           >
-            📥 Descargar Certificado PDF
+            <Download size={20} />
+            <span>Descargar Certificado PDF</span>
           </button>
         )}
 
@@ -181,9 +179,9 @@ const styles: Record<string, React.CSSProperties> = {
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    background: "linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%)",
+    background: "#000000",
     padding: "20px",
-    fontFamily: "'Inter', 'Segoe UI', sans-serif",
+    fontFamily: "'Poppins', sans-serif",
   },
   card: {
     background: "#ffffff",
@@ -194,31 +192,39 @@ const styles: Record<string, React.CSSProperties> = {
     overflow: "hidden",
   },
   header: {
-    background: "linear-gradient(135deg, #065f46 0%, #047857 100%)",
+    background: "#b0bf12", // APM Green
     padding: "32px 24px",
     textAlign: "center" as const,
+  },
+  logoContainer: {
+    display: "flex",
+    justifyContent: "center",
+    marginBottom: "20px",
+    background: "#ffffff",
+    padding: "10px",
+    borderRadius: "8px",
+    width: "fit-content",
+    margin: "0 auto 20px",
   },
   checkIcon: {
     width: "56px",
     height: "56px",
     borderRadius: "50%",
-    background: "rgba(255,255,255,0.2)",
-    color: "#fff",
-    fontSize: "28px",
+    background: "rgba(0,0,0,0.1)",
+    color: "#000",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
     margin: "0 auto 16px",
-    fontWeight: "bold",
   },
   title: {
-    color: "#fff",
+    color: "#000000",
     fontSize: "22px",
     fontWeight: "700",
     margin: "0 0 8px",
   },
   subtitle: {
-    color: "rgba(255,255,255,0.8)",
+    color: "rgba(0,0,0,0.7)",
     fontSize: "14px",
     margin: 0,
   },
@@ -253,11 +259,14 @@ const styles: Record<string, React.CSSProperties> = {
     background: "#e5e7eb",
   },
   viewBtn: {
-    display: "block",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: "8px",
     margin: "0 24px 12px",
     padding: "14px 24px",
-    background: "linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)",
-    color: "#fff",
+    background: "#000000",
+    color: "#b0bf12",
     textAlign: "center" as const,
     borderRadius: "10px",
     textDecoration: "none",
@@ -266,12 +275,15 @@ const styles: Record<string, React.CSSProperties> = {
     transition: "opacity 0.2s",
   },
   downloadBtn: {
-    display: "block",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: "8px",
     width: "calc(100% - 48px)",
     margin: "0 24px 20px",
     padding: "14px 24px",
-    background: "linear-gradient(135deg, #065f46 0%, #047857 100%)",
-    color: "#fff",
+    background: "#b0bf12",
+    color: "#000000",
     textAlign: "center" as const,
     borderRadius: "10px",
     border: "none",
