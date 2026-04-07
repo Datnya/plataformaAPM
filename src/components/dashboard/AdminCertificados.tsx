@@ -290,48 +290,48 @@ export default function AdminCertificados() {
         const logoRes = await fetch("/logo-apm.png");
         if (logoRes.ok) {
           const logoImage = await doc.embedPng(await logoRes.arrayBuffer());
-          drawImageCenter(logoImage, CX, 18, 40);
+          drawImageCenter(logoImage, CX, 16, 35);
         }
       } catch (err) { console.error("Error drawing Logo:", err); }
 
       // Title
-      drawText(courseTitle.toUpperCase(), CX, 38, 22, "#1e293b", fontBold);
+      drawText(courseTitle.toUpperCase(), CX, 34, 19, "#1e293b", fontBold);
 
       // "Se otorga a:"
-      drawText("Se otorga a:", CX, 50, 16, "#6b7280", fontItalic);
+      drawText("Se otorga a:", CX, 44, 13, "#6b7280", fontItalic);
 
       // Participant name
-      drawText(participantName.toUpperCase(), CX, 60, 26, "#111827", fontBold);
+      drawText(participantName.toUpperCase(), CX, 53, 22, "#111827", fontBold);
 
       // "Por haber completado..."
-      drawText("Por haber completado satisfactoriamente el programa de:", CX, 72, 14, "#4b5563", fontNormal);
+      drawText("Por haber completado satisfactoriamente el programa de:", CX, 63, 12, "#4b5563", fontNormal);
 
       // Program description
       const progDesc = programDescription || courseTitle;
-      drawText(progDesc, CX, 82, 18, "#1e293b", fontBold);
+      drawText(progDesc, CX, 72, 15, "#1e293b", fontBold);
 
       // Decorative line
-      drawLine(CX - 40, 90, CX + 40, 90, "#d1d5db", 0.8);
+      drawLine(CX - 40, 79, CX + 40, 79, "#d1d5db", 0.8);
 
       // "Basado en las normas:"
-      drawText("Basado en las normas:", CX, 97, 14, "#6b7280", fontItalic);
+      drawText("Basado en las normas:", CX, 85, 12, "#6b7280", fontItalic);
 
       // Norma lines
       const normaLines = normasText.split("\n").map(l => l.trim()).filter(Boolean).slice(0, 6);
       normaLines.forEach((line, i) => {
-        drawText(line, CX, 105 + i * 8, 13, "#374151", fontNormal);
+        drawText(line, CX, 92 + i * 7, 11, "#374151", fontNormal);
       });
 
       // Data line: "Duración: XX horas | Fecha: ..."
-      const afterNormasY = 105 + Math.max(normaLines.length, 1) * 8;
-      const dataLineY = Math.max(afterNormasY + 5, 145);
+      const afterNormasY = 92 + Math.max(normaLines.length, 1) * 7;
+      const dataLineY = Math.max(afterNormasY + 4, 130);
       const dataText = `Duración: ${duration}     |     Fecha: ${issueDate}`;
-      drawText(dataText, CX, dataLineY, 13, "#374151", fontItalic);
+      drawText(dataText, CX, dataLineY, 11, "#374151", fontItalic);
 
-      // ── Sello APM on the LEFT ──
-      const SELLO_CX = 55;
-      const SELLO_CY = 120;
-      const SELLO_W = 60;
+      // ── Sello APM on the LEFT (2cm smaller, more left, 1cm higher) ──
+      const SELLO_CX = 45;
+      const SELLO_CY = 110;
+      const SELLO_W = 40;
       try {
         const selloRes = await fetch("/sello-apm-v2.png");
         if (selloRes.ok) {
@@ -340,8 +340,8 @@ export default function AdminCertificados() {
         }
       } catch (err) { console.error("Error drawing Sello:", err); }
 
-      // ── QR Code on the RIGHT ──
-      const QR_SIZE_MM = 45;
+      // ── QR Code on the RIGHT (2cm smaller, 1cm higher, same height as sello) ──
+      const QR_SIZE_MM = 25;
       const QR_CX = PAGE_W_MM - SELLO_CX;
       const QR_CY = SELLO_CY;
       const qrUrl = `${window.location.origin}/certificados/validar/${accessKey}`;
@@ -352,11 +352,11 @@ export default function AdminCertificados() {
       drawImageCenter(qrImage, QR_CX, QR_CY, QR_SIZE_MM);
 
       // ── Signatures ──
-      const SIG_W_MM = 40;
-      const sigCargoY = 195;
-      const sigNameY = 190;
-      const sigLineY = 185;
-      const SIG_CENTER_Y = 172;
+      const SIG_W_MM = 35;
+      const sigCargoY = 192;
+      const sigNameY = 187;
+      const sigLineY = 182;
+      const SIG_CENTER_Y = 168;
       const SIG_LEFT_CX = CX - 45;
       const SIG_RIGHT_CX = CX + 45;
 
