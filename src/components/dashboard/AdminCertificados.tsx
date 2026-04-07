@@ -216,10 +216,29 @@ export default function AdminCertificados() {
       const bgRes = await fetch("/bg-final.pdf");
       if (!bgRes.ok) throw new Error("No se pudo cargar el PDF de fondo");
       const bgBytes = await bgRes.arrayBuffer();
-      
-      const doc = await PDFDocument.load(bgBytes);
-      const page = doc.getPages()[0]; 
-      const { width: pageWidthPt, height: pageHeightPt } = page.getSize();
+
+      // A4 landscape dimensions in points (297mm x 210mm)
+      const A4_W_PT = 841.89;
+      const A4_H_PT = 595.28;
+
+      // Load the background PDF
+      const bgDoc = await PDFDocument.load(bgBytes);
+
+      // Create the final document with proper A4 landscape page
+      const doc = await PDFDocument.create();
+      const [bgPage] = await doc.embedPdf(bgDoc, [0]);
+      const page = doc.addPage([A4_W_PT, A4_H_PT]);
+
+      // Draw the background PDF scaled to fill the ENTIRE A4 page edge-to-edge
+      page.drawPage(bgPage, {
+        x: 0,
+        y: 0,
+        width: A4_W_PT,
+        height: A4_H_PT,
+      });
+
+      const pageWidthPt = A4_W_PT;
+      const pageHeightPt = A4_H_PT;
 
       const fontBold = await doc.embedFont(StandardFonts.HelveticaBold);
       const fontNormal = await doc.embedFont(StandardFonts.Helvetica);
@@ -228,12 +247,12 @@ export default function AdminCertificados() {
       const mm2pt = (mm: number) => mm * 2.83465;
       const pt2mm = (pt: number) => pt / 2.83465;
 
-      // Dynamically compute the TRUE center of the page in mm
-      const PAGE_W_MM = pt2mm(pageWidthPt);  // actual page width in mm
-      const PAGE_H_MM = pt2mm(pageHeightPt); // actual page height in mm
-      const CX = PAGE_W_MM / 2;              // TRUE horizontal center
+      // A4 landscape dimensions in mm
+      const PAGE_W_MM = 297;
+      const PAGE_H_MM = 210;
+      const CX = PAGE_W_MM / 2; // 148.5mm
 
-      console.log(`PDF page: ${PAGE_W_MM.toFixed(1)}mm x ${PAGE_H_MM.toFixed(1)}mm — center at ${CX.toFixed(1)}mm`);
+      console.log(`PDF page: ${PAGE_W_MM}mm x ${PAGE_H_MM}mm — center at ${CX}mm (A4 Landscape)`);
 
       const toColor = (hex: string) => {
         const r = parseInt(hex.slice(1, 3), 16) / 255;
