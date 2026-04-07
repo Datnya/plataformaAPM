@@ -290,7 +290,7 @@ export default function AdminCertificados() {
         const logoRes = await fetch("/logo-apm.png");
         if (logoRes.ok) {
           const logoImage = await doc.embedPng(await logoRes.arrayBuffer());
-          drawImageCenter(logoImage, CX, 16, 35);
+          drawImageCenter(logoImage, CX, 26, 35);
         }
       } catch (err) { console.error("Error drawing Logo:", err); }
 
@@ -298,7 +298,7 @@ export default function AdminCertificados() {
       drawText(courseTitle.toUpperCase(), CX, 54, 19, "#1e293b", fontBold);
 
       // "Se otorga a:"
-      drawText("Se otorga a:", CX, 64, 13, "#6b7280", fontItalic);
+      drawText("Se otorga a:", CX, 63, 13, "#6b7280", fontItalic);
 
       // Participant name
       drawText(participantName.toUpperCase(), CX, 73, 22, "#111827", fontBold);
@@ -428,8 +428,8 @@ export default function AdminCertificados() {
       if (gerenteSig) drawText(gerenteSig.cargo || "Gerente General", SIG_LEFT_CX, sigCargoY, 10, "#6b7280", fontNormal);
       if (consultorSig) drawText(consultorSig.cargo || "Consultor", SIG_RIGHT_CX, sigCargoY, 10, "#6b7280", fontNormal);
 
-      // Código at bottom right
-      drawText(`Código: ${participantCode}`, PAGE_W_MM - 50, sigCargoY, 10, "#374151", fontNormal);
+      // Código at bottom right (1cm lower)
+      drawText(`Código: ${participantCode}`, PAGE_W_MM - 50, sigCargoY + 10, 10, "#374151", fontNormal);
 
       const pdfBytesFinal = await doc.save();
       return new Blob([pdfBytesFinal.buffer as ArrayBuffer], { type: "application/pdf" });
