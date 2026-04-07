@@ -45,7 +45,7 @@ export async function POST(req: Request) {
       .from("certificates")
       .insert({
         id: accessKey,
-        project_id: Number(projectId),
+        project_id: projectId,
         course_title: courseTitle,
         participant_name: participantName,
         participant_code: participantCode,
