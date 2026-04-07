@@ -290,7 +290,7 @@ export default function AdminCertificados() {
 
       /* ── Sello APM on the LEFT ── */
       try {
-        const selloRes = await fetch("/sello-apm.png");
+        const selloRes = await fetch("/sello-apm-v2.png");
         if (selloRes.ok) {
           const selloImage = await doc.embedPng(await selloRes.arrayBuffer());
           drawImageCenter(selloImage, SELLO_CX, SELLO_CY, SELLO_W); 
