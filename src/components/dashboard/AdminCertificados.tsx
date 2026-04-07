@@ -213,32 +213,14 @@ export default function AdminCertificados() {
     const QRCode = await import("qrcode");
 
     try {
-      const bgRes = await fetch("/bg-final.pdf");
+      const bgRes = await fetch("/bg-certificado.pdf");
       if (!bgRes.ok) throw new Error("No se pudo cargar el PDF de fondo");
       const bgBytes = await bgRes.arrayBuffer();
 
-      // A4 landscape dimensions in points (297mm x 210mm)
-      const A4_W_PT = 841.89;
-      const A4_H_PT = 595.28;
-
-      // Load the background PDF
-      const bgDoc = await PDFDocument.load(bgBytes);
-
-      // Create the final document with proper A4 landscape page
-      const doc = await PDFDocument.create();
-      const [bgPage] = await doc.embedPdf(bgDoc, [0]);
-      const page = doc.addPage([A4_W_PT, A4_H_PT]);
-
-      // Draw the background PDF scaled to fill the ENTIRE A4 page edge-to-edge
-      page.drawPage(bgPage, {
-        x: 0,
-        y: 0,
-        width: A4_W_PT,
-        height: A4_H_PT,
-      });
-
-      const pageWidthPt = A4_W_PT;
-      const pageHeightPt = A4_H_PT;
+      // Use the new background PDF directly (it already has correct A4 dimensions)
+      const doc = await PDFDocument.load(bgBytes);
+      const page = doc.getPages()[0];
+      const { width: pageWidthPt, height: pageHeightPt } = page.getSize();
 
       const fontBold = await doc.embedFont(StandardFonts.HelveticaBold);
       const fontNormal = await doc.embedFont(StandardFonts.Helvetica);
@@ -247,12 +229,11 @@ export default function AdminCertificados() {
       const mm2pt = (mm: number) => mm * 2.83465;
       const pt2mm = (pt: number) => pt / 2.83465;
 
-      // A4 landscape dimensions in mm
-      const PAGE_W_MM = 297;
-      const PAGE_H_MM = 210;
-      const CX = PAGE_W_MM / 2; // 148.5mm
+      const PAGE_W_MM = pt2mm(pageWidthPt);
+      const PAGE_H_MM = pt2mm(pageHeightPt);
+      const CX = PAGE_W_MM / 2;
 
-      console.log(`PDF page: ${PAGE_W_MM}mm x ${PAGE_H_MM}mm — center at ${CX}mm (A4 Landscape)`);
+      console.log(`PDF page: ${PAGE_W_MM.toFixed(1)}mm x ${PAGE_H_MM.toFixed(1)}mm — center at ${CX.toFixed(1)}mm`);
 
       const toColor = (hex: string) => {
         const r = parseInt(hex.slice(1, 3), 16) / 255;
@@ -261,14 +242,12 @@ export default function AdminCertificados() {
         return rgb(r, g, b);
       };
 
-      // xMmCenter: horizontal center in mm from left edge
-      // yMmFromTop: vertical position in mm from TOP of page
       const drawText = (
-        text: string, 
-        xMmCenter: number, 
-        yMmFromTop: number, 
-        sizePt: number, 
-        colorHex: string, 
+        text: string,
+        xMmCenter: number,
+        yMmFromTop: number,
+        sizePt: number,
+        colorHex: string,
         fontId: any
       ) => {
         const textStr = text || "";
@@ -302,82 +281,84 @@ export default function AdminCertificados() {
         });
       };
 
-      // Sello parameters (used for QR positioning too)
-      const SELLO_CX = 70;   // center-x: 70mm from left
-      const SELLO_CY = 135;  // center-y: bajado 3cm (de 105 a 135)
-      const SELLO_W = 80;    // 80mm wide
-
-      /* ── Sello APM on the LEFT ── */
-      try {
-        const selloRes = await fetch("/sello-apm-v2.png");
-        if (selloRes.ok) {
-          const selloImage = await doc.embedPng(await selloRes.arrayBuffer());
-          drawImageCenter(selloImage, SELLO_CX, SELLO_CY, SELLO_W); 
-        }
-      } catch (err) { console.error("Error drawing Sello:", err); }
+      // ══════════════════════════════════════════════════════
+      // FIXED POSITIONS (mm from top) — calibrated to A4 landscape reference
+      // ══════════════════════════════════════════════════════
 
       /* ── LOGO APM at Top Center ── */
       try {
         const logoRes = await fetch("/logo-apm.png");
         if (logoRes.ok) {
           const logoImage = await doc.embedPng(await logoRes.arrayBuffer());
-          drawImageCenter(logoImage, CX, 30, 55);
+          drawImageCenter(logoImage, CX, 18, 40);
         }
       } catch (err) { console.error("Error drawing Logo:", err); }
 
-      // ── PROPORTIONAL LAYOUT ──
-      // Dynamically distribute content to fill the page without leaving empty gaps
-      const TOP_START = 50;  // mm from top where text content begins (below logo)
-      const BOTTOM_LIMIT = PAGE_H_MM - 20; // 2cm from bottom edge
-      const CONTENT_H = BOTTOM_LIMIT - TOP_START; // total available vertical space
+      // Title
+      drawText(courseTitle.toUpperCase(), CX, 38, 22, "#1e293b", fontBold);
 
-      // Position each element as a proportion of the available content height
-      const yAt = (pct: number) => TOP_START + CONTENT_H * pct;
+      // "Se otorga a:"
+      drawText("Se otorga a:", CX, 50, 16, "#6b7280", fontItalic);
 
-      // Title (very large, bold)
-      drawText(courseTitle.toUpperCase(), CX, yAt(0.04), 30, "#1e293b", fontBold);
+      // Participant name
+      drawText(participantName.toUpperCase(), CX, 60, 26, "#111827", fontBold);
 
-      // "Se otorga a:" — reduced interline from title
-      drawText("Se otorga a:", CX, yAt(0.10), 22, "#6b7280", fontItalic);
+      // "Por haber completado..."
+      drawText("Por haber completado satisfactoriamente el programa de:", CX, 72, 14, "#4b5563", fontNormal);
 
-      // Participant name — reduced interline
-      drawText(participantName.toUpperCase(), CX, yAt(0.18), 34, "#111827", fontBold);
-
-      // "Por haber completado..." — reduced interline (moved closer to name)
-      drawText("Por haber completado satisfactoriamente el programa de:", CX, yAt(0.24), 20, "#4b5563", fontNormal);
-
-      // Program description — reduced interline
+      // Program description
       const progDesc = programDescription || courseTitle;
-      drawText(progDesc, CX, yAt(0.31), 24, "#1e293b", fontBold);
+      drawText(progDesc, CX, 82, 18, "#1e293b", fontBold);
 
-      // Decorative line before normas
-      drawLine(CX - 40, yAt(0.37), CX + 40, yAt(0.37), "#d1d5db", 0.8);
+      // Decorative line
+      drawLine(CX - 40, 90, CX + 40, 90, "#d1d5db", 0.8);
 
       // "Basado en las normas:"
-      drawText("Basado en las normas:", CX, yAt(0.42), 20, "#6b7280", fontItalic);
+      drawText("Basado en las normas:", CX, 97, 14, "#6b7280", fontItalic);
 
       // Norma lines
       const normaLines = normasText.split("\n").map(l => l.trim()).filter(Boolean).slice(0, 6);
       normaLines.forEach((line, i) => {
-        drawText(line, CX, yAt(0.48 + i * 0.05), 19, "#374151", fontNormal);
+        drawText(line, CX, 105 + i * 8, 13, "#374151", fontNormal);
       });
 
-      // Data line: "Duración: XX horas   |   Fecha: ..." (reduced gap from normas)
-      const afterNormasPct = 0.48 + Math.max(normaLines.length - 1, 0) * 0.05;
-      const dataLinePct = Math.max(afterNormasPct + 0.02, 0.74); // gap further reduced!
-
-      // Use the raw date text (user types freely, e.g. multiple dates)
+      // Data line: "Duración: XX horas | Fecha: ..."
+      const afterNormasY = 105 + Math.max(normaLines.length, 1) * 8;
+      const dataLineY = Math.max(afterNormasY + 5, 145);
       const dataText = `Duración: ${duration}     |     Fecha: ${issueDate}`;
-      drawText(dataText, CX, yAt(dataLinePct), 19, "#374151", fontItalic);
+      drawText(dataText, CX, dataLineY, 13, "#374151", fontItalic);
+
+      // ── Sello APM on the LEFT ──
+      const SELLO_CX = 55;
+      const SELLO_CY = 120;
+      const SELLO_W = 60;
+      try {
+        const selloRes = await fetch("/sello-apm-v2.png");
+        if (selloRes.ok) {
+          const selloImage = await doc.embedPng(await selloRes.arrayBuffer());
+          drawImageCenter(selloImage, SELLO_CX, SELLO_CY, SELLO_W);
+        }
+      } catch (err) { console.error("Error drawing Sello:", err); }
+
+      // ── QR Code on the RIGHT ──
+      const QR_SIZE_MM = 45;
+      const QR_CX = PAGE_W_MM - SELLO_CX;
+      const QR_CY = SELLO_CY;
+      const qrUrl = `${window.location.origin}/certificados/validar/${accessKey}`;
+      const qrDataUrl = await QRCode.toDataURL(qrUrl, { margin: 1, width: 512 });
+      const qrBase64 = qrDataUrl.split(',')[1];
+      const qrBytes = Uint8Array.from(atob(qrBase64), c => c.charCodeAt(0));
+      const qrImage = await doc.embedPng(qrBytes);
+      drawImageCenter(qrImage, QR_CX, QR_CY, QR_SIZE_MM);
 
       // ── Signatures ──
-      const SIG_W_MM = 44;
-      const sigCargoY = yAt(0.97);    // cargo text near bottom
-      const sigNameY = yAt(0.93);      // name above cargo
-      const sigLineY = yAt(0.89);      // line above name
-      const SIG_CENTER_Y = yAt(0.85);  // signature image center
-      const SIG_LEFT_CX = CX - 55;
-      const SIG_RIGHT_CX = CX + 55;
+      const SIG_W_MM = 40;
+      const sigCargoY = 195;
+      const sigNameY = 190;
+      const sigLineY = 185;
+      const SIG_CENTER_Y = 172;
+      const SIG_LEFT_CX = CX - 45;
+      const SIG_RIGHT_CX = CX + 45;
 
       const gerenteSig = signatures.find((s:any) => s.id === gerenteSigId);
       const consultorSig = signatures.find((s:any) => s.id === consultorSigId);
@@ -396,11 +377,9 @@ export default function AdminCertificados() {
             const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
             const d = imgData.data;
             for (let i = 0; i < d.length; i += 4) {
-              // Convert white or light grey pixels to highly transparent
               if (d[i] > 200 && d[i+1] > 200 && d[i+2] > 200) {
-                d[i+3] = 0; 
+                d[i+3] = 0;
               } else if (d[i] > 160 && d[i+1] > 160 && d[i+2] > 160) {
-                // Soft edges (anti-aliasing)
                 d[i+3] = Math.max(0, d[i+3] - 150);
               }
             }
@@ -419,7 +398,6 @@ export default function AdminCertificados() {
         try {
           const res = await fetch(url);
           const bytes = await res.arrayBuffer();
-          // Remove white background dynamically
           const cleanPngBytes = await makeTransparent(bytes);
           if (cleanPngBytes) {
             return await doc.embedPng(cleanPngBytes).catch(() => doc.embedJpg(bytes));
@@ -430,7 +408,6 @@ export default function AdminCertificados() {
 
       if (gerenteSig?.signature_url) {
         const img = await embedSigImage(gerenteSig.signature_url);
-        // Gerente is scaled 2cm larger (approx +20mm)
         if (img) drawImageCenter(img, SIG_LEFT_CX, SIG_CENTER_Y, SIG_W_MM + 20);
       }
 
@@ -439,31 +416,20 @@ export default function AdminCertificados() {
         if (img) drawImageCenter(img, SIG_RIGHT_CX, SIG_CENTER_Y, SIG_W_MM);
       }
 
-      // ── QR Code on the RIGHT side, same height as the seal ──
-      const QR_SIZE_MM = 60;
-      const QR_CX = PAGE_W_MM - SELLO_CX;
-      const QR_CY = SELLO_CY;
-      const qrUrl = `${window.location.origin}/certificados/validar/${accessKey}`;
-      const qrDataUrl = await QRCode.toDataURL(qrUrl, { margin: 1, width: 512 });
-      const qrBase64 = qrDataUrl.split(',')[1];
-      const qrBytes = Uint8Array.from(atob(qrBase64), c => c.charCodeAt(0));
-      const qrImage = await doc.embedPng(qrBytes);
-      drawImageCenter(qrImage, QR_CX, QR_CY, QR_SIZE_MM);
-
       // Signature lines
       drawLine(SIG_LEFT_CX - 22, sigLineY, SIG_LEFT_CX + 22, sigLineY, "#6b7280", 1.0);
       drawLine(SIG_RIGHT_CX - 22, sigLineY, SIG_RIGHT_CX + 22, sigLineY, "#6b7280", 1.0);
 
       // Signature names
-      if (gerenteSig) drawText(gerenteSig.name, SIG_LEFT_CX, sigNameY, 17, "#1e293b", fontBold);
-      if (consultorSig) drawText(consultorSig.name, SIG_RIGHT_CX, sigNameY, 17, "#1e293b", fontBold);
+      if (gerenteSig) drawText(gerenteSig.name, SIG_LEFT_CX, sigNameY, 12, "#1e293b", fontBold);
+      if (consultorSig) drawText(consultorSig.name, SIG_RIGHT_CX, sigNameY, 12, "#1e293b", fontBold);
 
       // Signature cargos
-      if (gerenteSig) drawText(gerenteSig.cargo || "Gerente General", SIG_LEFT_CX, sigCargoY, 15, "#6b7280", fontNormal);
-      if (consultorSig) drawText(consultorSig.cargo || "Consultor", SIG_RIGHT_CX, sigCargoY, 15, "#6b7280", fontNormal);
+      if (gerenteSig) drawText(gerenteSig.cargo || "Gerente General", SIG_LEFT_CX, sigCargoY, 10, "#6b7280", fontNormal);
+      if (consultorSig) drawText(consultorSig.cargo || "Consultor", SIG_RIGHT_CX, sigCargoY, 10, "#6b7280", fontNormal);
 
-      // Código at bottom right (shifted left so it doesn't hit right edge for long codes)
-      drawText(`Código: ${participantCode}`, PAGE_W_MM - 60, sigCargoY, 15, "#374151", fontNormal);
+      // Código at bottom right
+      drawText(`Código: ${participantCode}`, PAGE_W_MM - 50, sigCargoY, 10, "#374151", fontNormal);
 
       const pdfBytesFinal = await doc.save();
       return new Blob([pdfBytesFinal.buffer as ArrayBuffer], { type: "application/pdf" });
