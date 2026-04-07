@@ -21,12 +21,23 @@ export async function POST(req: Request) {
     const pdfFile          = formData.get("pdf") as File | null;
 
     if (!projectId || !courseTitle || !participantName || !accessKey || !pdfFile) {
-      return NextResponse.json({ error: "Faltan campos requeridos" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Faltan campos requeridos", detail: { projectId: !!projectId, courseTitle: !!courseTitle, participantName: !!participantName, accessKey: !!accessKey, pdfFile: !!pdfFile } },
+        { status: 400 }
+      );
     }
 
-    const supabase = getSupabaseAdmin();
+    let supabase;
+    try {
+      supabase = getSupabaseAdmin();
+    } catch (e) {
+      return NextResponse.json(
+        { error: `Config error: ${e instanceof Error ? e.message : "Unknown"}` },
+        { status: 500 }
+      );
+    }
 
-    // Upload PDF to Supabase Storage
+    // Step 1: Upload PDF to Supabase Storage
     const buffer = Buffer.from(await pdfFile.arrayBuffer());
     const filePath = `pdfs/${projectId}/${accessKey}.pdf`;
 
@@ -34,31 +45,47 @@ export async function POST(req: Request) {
       .from("certificados")
       .upload(filePath, buffer, { contentType: "application/pdf", upsert: true });
 
-    if (uploadError) throw uploadError;
+    if (uploadError) {
+      console.error("Storage upload error:", uploadError);
+      return NextResponse.json(
+        { error: `Error subiendo PDF: ${uploadError.message}` },
+        { status: 500 }
+      );
+    }
 
+    // Step 2: Get public URL
     const { data: urlData } = supabase.storage
       .from("certificados")
       .getPublicUrl(filePath);
 
-    // Save certificate record to DB
+    // Step 3: Save certificate record to DB (upsert to handle retries)
+    const certRecord = {
+      id: accessKey,
+      project_id: Number(projectId),
+      course_title: courseTitle,
+      participant_name: participantName,
+      participant_code: participantCode || "",
+      duration: duration || "",
+      issue_date: issueDate || "",
+      normas: normas || null,
+      pdf_url: urlData.publicUrl,
+      access_key: accessKey,
+    };
+
     const { data, error } = await supabase
       .from("certificates")
-      .insert({
-        id: accessKey,
-        project_id: projectId,
-        course_title: courseTitle,
-        participant_name: participantName,
-        participant_code: participantCode,
-        duration,
-        issue_date: issueDate,
-        normas: normas || null,
-        pdf_url: urlData.publicUrl,
-        access_key: accessKey,
-      })
+      .upsert(certRecord, { onConflict: "id" })
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) {
+      console.error("DB insert error:", error);
+      return NextResponse.json(
+        { error: `Error guardando en DB: ${error.message}`, code: error.code, details: error.details },
+        { status: 500 }
+      );
+    }
+
     return NextResponse.json({ success: true, certificate: data });
   } catch (error) {
     console.error("Certificate upload error:", error);

@@ -525,6 +525,7 @@ export default function AdminCertificados() {
   const handleSaveToProject = async () => {
     setSavingToProject(true);
     let errorCount = 0;
+    let lastError = "";
 
     for (let i = 0; i < results.length; i++) {
       const cert = results[i];
@@ -542,7 +543,7 @@ export default function AdminCertificados() {
         let blobToUpload = cert.pdfBlob;
         if (!blobToUpload) {
           blobToUpload = await generatePDF(cert.name, cert.code, cert.accessKey) || undefined;
-          if (!blobToUpload) { errorCount++; continue; }
+          if (!blobToUpload) { errorCount++; lastError = "No se pudo generar el PDF"; continue; }
         }
 
         formData.append("pdf", blobToUpload, `${cert.name}.pdf`);
@@ -552,17 +553,25 @@ export default function AdminCertificados() {
           body: formData,
         });
 
-        if (!res.ok) { errorCount++; }
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          lastError = data.error || `HTTP ${res.status}`;
+          console.error(`Error guardando cert ${i + 1}/${results.length}:`, data);
+          errorCount++;
+        }
       } catch (e) {
+        lastError = e instanceof Error ? e.message : "Error de conexión";
+        console.error(`Error conexión cert ${i + 1}:`, e);
         errorCount++;
       }
     }
 
     setSavingToProject(false);
     if (errorCount > 0) {
-      alert(`Se guardaron con ${errorCount} errores. Inténtalo de nuevo para los fallidos.`);
+      alert(`Se guardaron con ${errorCount} errores.\nÚltimo error: ${lastError}`);
     } else {
       setIsSavedToProject(true);
+      alert(`✅ ${results.length} certificados guardados exitosamente en el proyecto.`);
     }
   };
 
