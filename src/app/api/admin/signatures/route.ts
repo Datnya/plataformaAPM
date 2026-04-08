@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { requireRole } from "@/lib/auth-guard";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
+import crypto from "crypto";
 
 export async function GET() {
   try {
@@ -12,7 +13,8 @@ export async function GET() {
     const { data, error } = await supabase
       .from("consultant_signatures")
       .select("id, name, cargo, signature_url, is_gerente, created_at")
-      .order("is_gerente", { ascending: false });
+      .order("is_gerente", { ascending: false })
+      .order("created_at", { ascending: false });
 
     if (error) throw error;
     return NextResponse.json(data || []);
