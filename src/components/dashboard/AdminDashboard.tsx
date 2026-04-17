@@ -5,7 +5,7 @@ import { useAuth } from "@/context/AuthContext";
 import { FolderKanban, Users, Building2, Briefcase, UserPlus, CalendarDays, Loader2 } from "lucide-react";
 
 export default function AdminDashboard() {
-  const { setCurrentView, userName, userRole, userId } = useAuth();
+  const { setCurrentView, userName, userRole, userId, currentView } = useAuth();
   const [stats, setStats] = useState({
     activeProjects: "0",
     consultants: "0",
@@ -28,8 +28,9 @@ export default function AdminDashboard() {
   };
 
   useEffect(() => {
-    if (!userId) return;
-
+    if (!userId || currentView !== "dashboard") return;
+    
+    // Fetch dashboard stats
     fetch("/api/admin/dashboard", { cache: "no-store" })
       .then(res => res.json())
       .then(data => {
@@ -78,7 +79,7 @@ export default function AdminDashboard() {
         }
       })
       .finally(() => setLoading(false));
-  }, [userId]);
+  }, [userId, currentView]);
 
   const statCards = [
     { label: "Proyectos Activos", value: stats.activeProjects, icon: <FolderKanban size={26} strokeWidth={1.5} />, color: "#b4c307" },
