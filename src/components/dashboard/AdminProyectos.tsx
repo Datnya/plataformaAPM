@@ -659,7 +659,7 @@ export default function AdminProyectos() {
 
         {/* Modal: ADD GOAL */}
         {showAddGoal && (
-           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setShowAddGoal(false)}>
+           <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4 min-h-screen" onClick={() => setShowAddGoal(false)}>
              <div className="bg-white rounded-2xl w-full max-w-md animate-scale-in p-6" onClick={e => e.stopPropagation()}>
                 <h2 className="text-lg font-bold mb-4">Asignar Nuevo Objetivo</h2>
                 <form onSubmit={handleAddGoal} className="space-y-4">
@@ -689,7 +689,7 @@ export default function AdminProyectos() {
 
         {/* Modal: PREVIEW */}
         {previewUrl && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4" onClick={() => setPreviewUrl(null)}>
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4 min-h-screen" onClick={() => setPreviewUrl(null)}>
             <div className="bg-white rounded-2xl w-full max-w-4xl h-[85vh] flex flex-col animate-scale-in overflow-hidden" onClick={e => e.stopPropagation()}>
               <div className="flex items-center justify-between p-4 border-b border-border">
                 <h2 className="text-lg font-bold flex items-center gap-2">
@@ -708,7 +708,7 @@ export default function AdminProyectos() {
 
         {/* Modal: CERTIFICATES LIST */}
         {showCertModal && (
-          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4" onClick={() => setShowCertModal(false)}>
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4 min-h-screen" onClick={() => setShowCertModal(false)}>
             <div className="bg-white rounded-2xl w-full max-w-4xl max-h-[85vh] flex flex-col animate-scale-in" onClick={e => e.stopPropagation()}>
               <div className="flex flex-col sm:flex-row sm:items-center justify-between p-5 border-b border-border bg-surface/30 rounded-t-2xl gap-4">
                 <div>
@@ -839,7 +839,7 @@ export default function AdminProyectos() {
       </div>
 
       {showAdd && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setShowAdd(false)}>
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4 min-h-screen" onClick={() => setShowAdd(false)}>
           <div className="bg-white p-6 rounded-xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto animate-scale-in" onClick={(e) => e.stopPropagation()}>
             <h3 className="text-xl font-bold mb-4">Añadir Nuevo Proyecto</h3>
             
@@ -894,7 +894,7 @@ export default function AdminProyectos() {
       )}
 
       {showEdit && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setShowEdit(false)}>
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4 min-h-screen" onClick={() => setShowEdit(false)}>
           <div className="bg-white p-6 rounded-xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto animate-scale-in" onClick={(e) => e.stopPropagation()}>
             <h3 className="text-xl font-bold mb-4">Editar Proyecto</h3>
             

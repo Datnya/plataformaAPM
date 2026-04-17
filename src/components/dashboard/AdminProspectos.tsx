@@ -288,11 +288,8 @@ export default function AdminProspectos() {
     </div>
 
       {showModal && (
-        <>
-          <div className="fixed inset-0 z-[9998] bg-black/60" onClick={() => setShowModal(false)} />
-          <div className="bg-white rounded-2xl w-[90%] max-w-3xl p-6 shadow-2xl" 
-               style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 9999, maxHeight: '90vh', overflowY: 'auto' }}
-               onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 z-[9998] bg-black/60 flex items-center justify-center p-4 min-h-screen" onClick={() => setShowModal(false)}>
+          <div className="bg-white rounded-2xl w-full max-w-3xl p-6 shadow-2xl max-h-[90vh] overflow-y-auto animate-scale-in" onClick={e => e.stopPropagation()}>
                <h2 className="text-xl font-bold mb-6 pb-2 border-b border-border">
                {editingId ? "Editar Prospecto" : "Registrar Nuevo Prospecto"}
              </h2>
@@ -383,7 +380,7 @@ export default function AdminProspectos() {
 
              </form>
           </div>
-        </>
+        </div>
       )}
 
     </>

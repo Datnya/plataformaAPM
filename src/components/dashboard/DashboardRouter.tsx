@@ -22,6 +22,7 @@ import AdminSocialContent from "@/components/dashboard/AdminSocialContent";
 import AdminManualUsuario from "@/components/dashboard/AdminManualUsuario";
 import ConsultorManualUsuario from "@/components/dashboard/ConsultorManualUsuario";
 import AdminCertificados from "@/components/dashboard/AdminCertificados";
+import AdminWeeklyTasks from "@/components/dashboard/AdminWeeklyTasks";
 
 const viewMap: Record<string, Record<string, React.FC>> = {
   CONSULTOR: {
@@ -48,6 +49,7 @@ const viewMap: Record<string, Record<string, React.FC>> = {
     redes: AdminSocialContent,
     manual: AdminManualUsuario,
     certificados: AdminCertificados,
+    "tareas-semanales": AdminWeeklyTasks,
     // Admin can see consultor views too
     jornada: ConsultorJornada,
     objetivos: ConsultorObjetivos,

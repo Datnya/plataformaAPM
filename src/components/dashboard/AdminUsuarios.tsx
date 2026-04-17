@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Frown, Eye, EyeOff } from "lucide-react";
 
 interface UserData {
   id: string;
@@ -18,10 +19,13 @@ export default function AdminUsuarios() {
   // Edit modal states
   const [editId, setEditId] = useState<string | null>(null);
   const [newName, setNewName] = useState("");
+  const [newEmail, setNewEmail] = useState("");
+  const [newRole, setNewRole] = useState("CLIENTE");
   const [newPassword, setNewPassword] = useState("");
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [editError, setEditError] = useState("");
+  const [showEditPass, setShowEditPass] = useState(false);
 
   // Add-new-user modal states
   const [showAddModal, setShowAddModal] = useState(false);
@@ -31,9 +35,11 @@ export default function AdminUsuarios() {
   const [addRole, setAddRole] = useState("CONSULTOR");
   const [addLoading, setAddLoading] = useState(false);
   const [addMsg, setAddMsg] = useState({ text: "", type: "" });
+  const [showAddPass, setShowAddPass] = useState(false);
 
   // Delete states
   const [delError, setDelError] = useState("");
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
 
   const fetchUsers = async () => {
     setLoading(true);
@@ -61,6 +67,8 @@ export default function AdminUsuarios() {
   const openEditModal = (user: UserData) => {
     setEditId(user.id);
     setNewName(user.name);
+    setNewEmail(user.email);
+    setNewRole(user.role);
     setNewPassword("");
     setSaved(false);
     setEditError("");
@@ -78,13 +86,13 @@ export default function AdminUsuarios() {
 
   const handleEditUser = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editId || !newName) return;
+    if (!editId || !newName || !newEmail) return;
 
     setSaving(true);
     setEditError("");
 
     try {
-      const payload: any = { name: newName };
+      const payload: any = { name: newName, email: newEmail, role: newRole };
       if (newPassword) payload.password = newPassword;
 
       const res = await fetch(`/api/admin/users/${editId}`, {
@@ -101,7 +109,7 @@ export default function AdminUsuarios() {
 
       // Update local state directly — NO reload needed
       setUsers(prev =>
-        prev.map(u => u.id === editId ? { ...u, name: newName } : u)
+        prev.map(u => u.id === editId ? { ...u, name: newName, email: newEmail, role: newRole } : u)
       );
 
       setSaving(false);
@@ -110,6 +118,8 @@ export default function AdminUsuarios() {
       setTimeout(() => {
         setEditId(null);
         setNewName("");
+        setNewEmail("");
+        setNewRole("CLIENTE");
         setNewPassword("");
         setSaved(false);
       }, 1200);
@@ -120,11 +130,15 @@ export default function AdminUsuarios() {
     }
   };
 
-  const handleDelete = async (userId: string) => {
-    if (!confirm("¿Estás seguro de que deseas eliminar este usuario de la plataforma?")) return;
+  const handleDeleteClick = (userId: string) => {
+    setPendingDeleteId(userId);
+  };
+
+  const confirmDelete = async () => {
+    if (!pendingDeleteId) return;
     setDelError("");
 
-    const res = await fetch(`/api/admin/users/${userId}`, { method: "DELETE" });
+    const res = await fetch(`/api/admin/users/${pendingDeleteId}`, { method: "DELETE" });
     const data = await res.json();
 
     if (!data.success) {
@@ -133,6 +147,7 @@ export default function AdminUsuarios() {
     } else {
       fetchUsers();
     }
+    setPendingDeleteId(null);
   };
 
   // --- Add new user handler ---
@@ -250,7 +265,7 @@ export default function AdminUsuarios() {
                        <button onClick={() => openEditModal(user)} className="text-text-muted hover:text-info bg-surface font-semibold text-xs px-2 py-1 rounded-md border border-border">
                          Editar
                        </button>
-                       <button onClick={() => handleDelete(user.id)} className="text-danger hover:text-white hover:bg-danger bg-danger/10 font-semibold text-xs px-2 py-1 rounded-md border border-danger/20 transition-all">
+                       <button onClick={() => handleDeleteClick(user.id)} className="text-danger hover:text-white hover:bg-danger bg-danger/10 font-semibold text-xs px-2 py-1 rounded-md border border-danger/20 transition-all">
                          Borrar
                        </button>
                     </td>
@@ -264,7 +279,7 @@ export default function AdminUsuarios() {
 
       {/* ========== EDIT USER MODAL ========== */}
       {editId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setEditId(null)}>
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4 min-h-screen" onClick={() => setEditId(null)}>
           <div className="bg-white p-6 rounded-xl shadow-xl w-full max-w-sm max-h-[90vh] overflow-y-auto animate-scale-in" onClick={e => e.stopPropagation()}>
             <h3 className="text-lg font-bold mb-4">Editar Usuario</h3>
 
@@ -274,12 +289,45 @@ export default function AdminUsuarios() {
               </div>
             )}
 
-            <form onSubmit={handleEditUser}>
-              <label className="block text-xs font-semibold mb-1">Nombre Completo</label>
-              <input required type="text" placeholder="Ej: Juan Pérez" value={newName} onChange={e => setNewName(e.target.value)} className="input-field mb-3" />
+            <form onSubmit={handleEditUser} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold mb-1">Nombre Completo</label>
+                <input required type="text" placeholder="Ej: Juan Pérez" value={newName} onChange={e => setNewName(e.target.value)} className="input-field" />
+              </div>
 
-              <label className="block text-xs font-semibold mb-1">Contraseña (opcional)</label>
-              <input type="password" placeholder="Nueva contraseña o dejar en blanco" value={newPassword} onChange={e => setNewPassword(e.target.value)} className="input-field mb-5" />
+              <div>
+                <label className="block text-xs font-semibold mb-1">Correo Electrónico</label>
+                <input required type="email" placeholder="correo@ejemplo.com" value={newEmail} onChange={e => setNewEmail(e.target.value)} className="input-field" />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold mb-1">Rol de Sistema</label>
+                <select className="input-field" value={newRole} onChange={e => setNewRole(e.target.value)}>
+                  <option value="ADMIN">Administrador</option>
+                  <option value="CONSULTOR">Consultor</option>
+                  <option value="CLIENTE">Cliente</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold mb-1">Contraseña (opcional)</label>
+                <div className="relative">
+                  <input 
+                    type={showEditPass ? "text" : "password"} 
+                    placeholder="Nueva contraseña o dejar en blanco" 
+                    value={newPassword} 
+                    onChange={e => setNewPassword(e.target.value)} 
+                    className="input-field w-full pr-10" 
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowEditPass(!showEditPass)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted hover:text-foreground transition-colors"
+                  >
+                    {showEditPass ? <Eye size={18} /> : <EyeOff size={18} />}
+                  </button>
+                </div>
+              </div>
 
               <div className="flex gap-3">
                 <button type="button" onClick={() => setEditId(null)} className="btn-secondary w-full py-2" disabled={saving || saved}>Cancelar</button>
@@ -294,7 +342,7 @@ export default function AdminUsuarios() {
 
       {/* ========== ADD NEW USER MODAL ========== */}
       {showAddModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setShowAddModal(false)}>
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4 min-h-screen" onClick={() => setShowAddModal(false)}>
           <div className="bg-white p-6 rounded-xl shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto animate-scale-in" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-5">
               <h3 className="text-lg font-bold">Crear Nuevo Usuario</h3>
@@ -322,7 +370,23 @@ export default function AdminUsuarios() {
 
               <div>
                 <label className="block text-sm font-medium mb-1.5">Contraseña Temporal</label>
-                <input required type="password" className="input-field" placeholder="••••••••" value={addPassword} onChange={e => setAddPassword(e.target.value)} />
+                <div className="relative">
+                  <input 
+                    required 
+                    type={showAddPass ? "text" : "password"} 
+                    className="input-field w-full pr-10" 
+                    placeholder="••••••••" 
+                    value={addPassword} 
+                    onChange={e => setAddPassword(e.target.value)} 
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowAddPass(!showAddPass)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted hover:text-foreground transition-colors"
+                  >
+                    {showAddPass ? <Eye size={18} /> : <EyeOff size={18} />}
+                  </button>
+                </div>
               </div>
 
               <div>
@@ -343,6 +407,34 @@ export default function AdminUsuarios() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+      {/* ========== DELETE CONFIRMATION MODAL ========== */}
+      {pendingDeleteId && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4 min-h-screen" onClick={() => setPendingDeleteId(null)}>
+          <div className="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-sm text-center animate-scale-in" onClick={e => e.stopPropagation()}>
+            <div className="mx-auto flex items-center justify-center w-16 h-16 rounded-full bg-primary/10 mb-6">
+              <Frown size={32} className="text-primary" />
+            </div>
+            <h3 className="text-xl font-bold text-foreground mb-2">¿Eliminar Usuario?</h3>
+            <p className="text-text-muted text-sm mb-8 px-2">
+              ¿Estás seguro que deseas eliminar este usuario? Esta acción no se puede deshacer y perderá el acceso a la plataforma.
+            </p>
+            <div className="flex gap-3">
+              <button 
+                onClick={() => setPendingDeleteId(null)} 
+                className="flex-1 py-3 text-sm font-bold text-text-muted bg-surface hover:bg-border/50 rounded-xl transition-colors"
+              >
+                Cancelar
+              </button>
+              <button 
+                onClick={confirmDelete} 
+                className="flex-1 py-3 text-sm font-bold text-white bg-primary hover:bg-primary-hover rounded-xl shadow-lg shadow-primary/30 transition-all"
+              >
+                Sí, eliminar
+              </button>
+            </div>
           </div>
         </div>
       )}

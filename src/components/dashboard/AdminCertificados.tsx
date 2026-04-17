@@ -916,7 +916,7 @@ export default function AdminCertificados() {
 
       {/* ── SIGNATURES MODAL ───────────────────────────────── */}
       {showSigsModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4 min-h-screen">
           <div className="bg-white rounded-2xl w-full max-w-lg shadow-xl overflow-hidden animate-scale-in">
             <div className="border-b border-border p-4 flex justify-between items-center bg-surface/30">
               <h2 className="font-bold">Gestión de Firmas</h2>
@@ -992,7 +992,7 @@ export default function AdminCertificados() {
 
       {/* ── RESULT MODAL ───────────────────────────────────── */}
       {showResultModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4 min-h-screen">
           <div className="bg-white rounded-2xl w-full max-w-4xl shadow-xl overflow-hidden flex flex-col max-h-[90vh] animate-scale-in">
 
             {/* Header */}
@@ -1077,7 +1077,7 @@ export default function AdminCertificados() {
 
       {/* ── PDF PREVIEW MODAL ──────────────────────────────── */}
       {previewUrl && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/70 p-4">
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/70 p-4 min-h-screen">
           <div className="bg-white rounded-2xl w-full max-w-5xl shadow-xl overflow-hidden flex flex-col max-h-[95vh] animate-scale-in">
             <div className="border-b border-border p-3 flex justify-between items-center">
               <h3 className="font-bold text-sm">Vista Previa del Certificado</h3>

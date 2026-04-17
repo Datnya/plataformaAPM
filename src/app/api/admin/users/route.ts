@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { requireRole } from "@/lib/auth-guard";
+import { getSupabaseAdmin } from "@/lib/supabase/admin";
 
 export async function GET() {
   try {
@@ -33,24 +34,27 @@ export async function POST(req: NextRequest) {
     const auth = await requireRole(["ADMIN"]);
     if ("error" in auth) return auth.error;
 
-    // INFO: To create actual Auth users securely via API, Supabase requires the Service Role Key.
-    // The Anon Key will either reject the request or override the current admin's session.
-    // Replace with `auth.admin.createUser()` once you add SUPABASE_SERVICE_ROLE_KEY to your .env
-    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    const body = await req.json();
+    const { email, password, name, role } = body;
+
+    const supabaseAdmin = getSupabaseAdmin();
     
-    if (!supabaseKey) {
-      return NextResponse.json({ 
-        error: "Falta configurar SUPABASE_SERVICE_ROLE_KEY en .env.local para poder crear usuarios en auth.users vía API." 
-      }, { status: 501 });
+    // Create the user in auth.users
+    const { data, error } = await supabaseAdmin.auth.admin.createUser({ 
+      email, 
+      password, 
+      email_confirm: true, 
+      user_metadata: { role, name } 
+    });
+    
+    if (error) {
+      console.error("Auth Admin Create Error:", error);
+      return NextResponse.json({ error: error.message }, { status: 400 });
     }
 
-    // This is the architecture pattern to implement once key is added:
-    // const supabaseAdmin = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, supabaseKey, { auth: { autoRefreshToken: false, persistSession: false } });
-    // const { data, error } = await getSupabaseAdmin().auth.admin.createUser({ email, password, email_confirm: true, user_metadata: { role, name } });
-    
-    return NextResponse.json({ 
-      error: "Funcionalidad de creación en pausa hasta configurar Service Role." 
-    }, { status: 501 });
+    // Since we created the user, the database triggers or subsequent hooks should insert it into public.users.
+    // Assuming the Supabase trigger takes care of public.users insertion upon auth.users creation.
+    return NextResponse.json({ success: true, user: data.user });
 
   } catch (error) {
     console.error("Admin Users POST Error:", error);

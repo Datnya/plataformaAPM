@@ -12,6 +12,7 @@ import {
   Share2,
   BookOpen,
   Award,
+  ListTodo,
 } from "lucide-react";
 import type { UserRole } from "@/context/AuthContext";
 
@@ -38,6 +39,7 @@ export const navItems: NavItem[] = [
   { label: "CRM Prospectos", view: "prospectos", icon: <Briefcase size={18} strokeWidth={1.8} />, roles: ["ADMIN"] },
   { label: "Gestión de Redes", view: "redes", icon: <Share2 size={18} strokeWidth={1.8} />, roles: ["ADMIN"] },
   { label: "Calendario APM", view: "calendario", icon: <CalendarDays size={18} strokeWidth={1.8} />, roles: ["ADMIN"] },
+  { label: "Tareas Semanales", view: "tareas-semanales", icon: <ListTodo size={18} strokeWidth={1.8} />, roles: ["ADMIN"] },
   { label: "Manual de Usuario", view: "manual", icon: <BookOpen size={18} strokeWidth={1.8} />, roles: ["ADMIN"] },
   { label: "Generador de Certificados", view: "certificados", icon: <Award size={18} strokeWidth={1.8} />, roles: ["ADMIN"] },
 ];
