@@ -42,8 +42,8 @@ export default function AdminWeeklyTasks() {
     setLoading(true);
     try {
       const [tasksRes, usersRes] = await Promise.all([
-        fetch("/api/weekly-tasks"),
-        fetch("/api/admin/users")
+        fetch("/api/weekly-tasks", { cache: "no-store" }),
+        fetch("/api/admin/users", { cache: "no-store" })
       ]);
       const tasksData = await tasksRes.json();
       const usersData = await usersRes.json();

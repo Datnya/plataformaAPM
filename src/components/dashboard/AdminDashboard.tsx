@@ -30,7 +30,7 @@ export default function AdminDashboard() {
   useEffect(() => {
     if (!userId) return;
 
-    fetch("/api/admin/dashboard")
+    fetch("/api/admin/dashboard", { cache: "no-store" })
       .then(res => res.json())
       .then(data => {
         if (data.stats) {
@@ -44,7 +44,7 @@ export default function AdminDashboard() {
       });
 
     // Fetch Admin Calendar notes
-    fetch("/api/admin/notes")
+    fetch("/api/admin/notes", { cache: "no-store" })
       .then(res => res.json())
       .then(data => {
         const notes = data.notes || [];
@@ -61,8 +61,8 @@ export default function AdminDashboard() {
         setUpcomingActivities(upcoming);
       });
 
-    // Fetch Weekly Tasks limit to assigned user
-    fetch(`/api/weekly-tasks?assigned_to=${userId}`)
+    // Fetch all Weekly Tasks for overall system health
+    fetch("/api/weekly-tasks", { cache: "no-store" })
       .then(res => res.json())
       .then(data => {
         if (data.tasks) {
