@@ -205,6 +205,7 @@ export default function AdminUsuarios() {
             <option value="TODOS">Todos los roles</option>
             <option value="ADMIN">Administradores</option>
             <option value="CONSULTOR">Consultores</option>
+            <option value="ESPECIALISTA">Especialistas</option>
             <option value="CLIENTE">Clientes</option>
           </select>
           <button onClick={() => { setShowAddModal(true); setAddMsg({ text: "", type: "" }); }} className="btn-primary flex items-center gap-2 py-2.5">
@@ -241,7 +242,8 @@ export default function AdminUsuarios() {
                       <div className="font-semibold text-foreground">{user.name}</div>
                       <div className={`text-[10px] uppercase font-bold mt-0.5 inline-block px-2 rounded-full ${
                         user.role === "ADMIN" ? "bg-danger/10 text-danger" :
-                        user.role === "CONSULTOR" ? "bg-info/10 text-info" : "bg-success/10 text-success"
+                        user.role === "CONSULTOR" ? "bg-info/10 text-info" :
+                        user.role === "ESPECIALISTA" ? "bg-warning/10 text-warning" : "bg-success/10 text-success"
                       }`}>
                         {user.role}
                       </div>
@@ -305,6 +307,7 @@ export default function AdminUsuarios() {
                 <select className="input-field" value={newRole} onChange={e => setNewRole(e.target.value)}>
                   <option value="ADMIN">Administrador</option>
                   <option value="CONSULTOR">Consultor</option>
+                  <option value="ESPECIALISTA">Especialista</option>
                   <option value="CLIENTE">Cliente</option>
                 </select>
               </div>
@@ -394,6 +397,7 @@ export default function AdminUsuarios() {
                 <select className="input-field" value={addRole} onChange={e => setAddRole(e.target.value)}>
                   <option value="ADMIN">Administrador</option>
                   <option value="CONSULTOR">Consultor</option>
+                  <option value="ESPECIALISTA">Especialista</option>
                   <option value="CLIENTE">Cliente</option>
                 </select>
               </div>
