@@ -159,7 +159,7 @@ export default function AdminConsultorGoals() {
       </div>
 
       {showAdd && (
-        <div className="fixed inset-0 z-[100] bg-black/50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[100] bg-black/50 flex items-center justify-center p-4 min-h-screen">
           <div className="bg-white p-6 rounded-xl shadow-xl w-full max-w-md animate-scale-in">
             <h3 className="text-xl font-bold mb-4">Nuevo Objetivo</h3>
             <form onSubmit={handleCreate} className="space-y-4">

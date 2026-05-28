@@ -1,12 +1,19 @@
+export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
-import { supabaseAdmin } from "@/lib/supabase/admin";
+import { getSupabaseAdmin } from "@/lib/supabase/admin";
 
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const supabase = await createClient();
+    let supabaseAdmin;
+    try {
+      supabaseAdmin = getSupabaseAdmin();
+    } catch (envErr: any) {
+      console.error("Certificates: supabaseAdmin init failed:", envErr.message);
+      return NextResponse.json({ error: envErr.message }, { status: 500 });
+    }
+
     const { id } = await params;
-    const { data: certificates, error } = await supabase
+    const { data: certificates, error } = await supabaseAdmin
       .from("certificates")
       .select("*")
       .eq("project_id", id)
@@ -16,7 +23,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     
     return NextResponse.json(certificates || []);
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    console.error("Certificates GET error:", err);
+    const msg = err.message || "Error desconocido";
+    return NextResponse.json({ error: `Certificates error: ${msg}` }, { status: 500 });
   }
 }
 
@@ -31,6 +40,7 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
     }
 
     // 1. Fetch certificates to find access keys and paths
+    const supabaseAdmin = getSupabaseAdmin();
     const { data: certs, error: fetchError } = await supabaseAdmin
       .from("certificates")
       .select("access_key")

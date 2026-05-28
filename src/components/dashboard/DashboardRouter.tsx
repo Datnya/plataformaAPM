@@ -21,8 +21,12 @@ import AdminMasHerramientas from "@/components/dashboard/AdminMasHerramientas";
 import AdminSocialContent from "@/components/dashboard/AdminSocialContent";
 import AdminManualUsuario from "@/components/dashboard/AdminManualUsuario";
 import ConsultorManualUsuario from "@/components/dashboard/ConsultorManualUsuario";
+import EspecialistaServiciosAdhoc from "@/components/dashboard/EspecialistaServiciosAdhoc";
+import EspecialistaServicioCapacitacion from "@/components/dashboard/EspecialistaServicioCapacitacion";
 import AdminCertificados from "@/components/dashboard/AdminCertificados";
 import AdminGeneradorPropuestas from "@/components/dashboard/AdminGeneradorPropuestas";
+import AdminWeeklyTasks from "@/components/dashboard/AdminWeeklyTasks";
+import AdminProyectosAdhoc from "@/components/dashboard/AdminProyectosAdhoc";
 
 const viewMap: Record<string, Record<string, React.FC>> = {
   CONSULTOR: {
@@ -33,6 +37,11 @@ const viewMap: Record<string, Record<string, React.FC>> = {
     "calendario-consultor": ConsultorCalendario,
     "manual-consultor": ConsultorManualUsuario,
   },
+  ESPECIALISTA: {
+    dashboard: EspecialistaServiciosAdhoc,
+    "servicios-adhoc": EspecialistaServiciosAdhoc,
+    "servicio-capacitacion": EspecialistaServicioCapacitacion,
+  },
   CLIENTE: {
     dashboard: ClienteDashboard,
     proyecto: ClienteProyecto,
@@ -42,6 +51,7 @@ const viewMap: Record<string, Record<string, React.FC>> = {
     dashboard: AdminDashboard,
     usuarios: AdminUsuarios,
     proyectos: AdminProyectos,
+    "proyectos-adhoc": AdminProyectosAdhoc,
     prospectos: AdminProspectos,
     "mas-herramientas": AdminMasHerramientas,
     "consultant-goals": AdminConsultorGoals,
@@ -50,6 +60,7 @@ const viewMap: Record<string, Record<string, React.FC>> = {
     manual: AdminManualUsuario,
     certificados: AdminCertificados,
     propuestas: AdminGeneradorPropuestas,
+    "tareas-semanales": AdminWeeklyTasks,
     // Admin can see consultor views too
     jornada: ConsultorJornada,
     objetivos: ConsultorObjetivos,

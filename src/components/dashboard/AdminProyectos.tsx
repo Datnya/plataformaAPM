@@ -60,6 +60,9 @@ export default function AdminProyectos() {
   const [showCertModal, setShowCertModal] = useState(false);
   const [deletingGroup, setDeletingGroup] = useState<string | null>(null);
 
+  // Debug state for production errors
+  const [fetchError, setFetchError] = useState<string | null>(null);
+
   // Detail Goals states
   const [showAddGoal, setShowAddGoal] = useState(false);
   const [goalDesc, setGoalDesc] = useState("");
@@ -73,9 +76,19 @@ export default function AdminProyectos() {
         fetch("/api/projects"),
         fetch("/api/admin/users")
       ]);
-      setProjects(await projRes.json());
-      setUsers(await usersRes.json());
-    } catch {}
+      const projData = await projRes.json();
+      const usersData = await usersRes.json();
+      
+      if (!Array.isArray(projData)) console.error("Projects API error:", projData);
+      if (!Array.isArray(usersData)) console.error("Users API error:", usersData);
+
+      setProjects(Array.isArray(projData) ? projData : []);
+      setUsers(Array.isArray(usersData) ? usersData : []);
+      setFetchError(null);
+    } catch (e: any) {
+      console.error("Fetch API error:", e);
+      setFetchError(e.message || JSON.stringify(e));
+    }
     setLoading(false);
   };
 
@@ -92,24 +105,46 @@ export default function AdminProyectos() {
   const openDetail = async (projectId: string, consId: string | undefined) => {
     setDetailLoading(true);
     setView("detail");
+    setFetchError(null);
     try {
-      // Fetch full project, reports, and certificates
-      const [pRes, rRes, cRes] = await Promise.all([
-        fetch(`/api/projects/${projectId}`),
-        consId ? fetch(`/api/consultant/reports?consultantId=${consId}&projectId=${projectId}`) : Promise.resolve({ json: () => ({ reports: [] }) }),
-        fetch(`/api/projects/${projectId}/certificates`)
-      ]);
+      // Project data is critical - must succeed
+      const pRes = await fetch(`/api/projects/${projectId}`);
+      if (!pRes.ok) throw new Error(`Error al cargar proyecto (${pRes.status})`);
+      const pData = await pRes.json();
 
-      const pData = await pRes.json().catch(() => ({ error: "Error parsing project" }));
-      const rData = await Promise.resolve(rRes.json()).catch(() => ({ reports: [] }));
-      const cData = await cRes.json().catch(() => ([]));
+      if (pData.error) {
+        setFetchError(pData.error);
+        setDetailProject(null);
+      } else {
+        setDetailProject(pData);
+      }
 
-      setDetailProject(pData && !pData.error ? pData : null);
-      setReports(rData.reports || []);
-      setCertificates(Array.isArray(cData) ? cData : []);
+      // Reports - optional, don't block
+      try {
+        if (consId) {
+          const rRes = await fetch(`/api/consultant/reports?consultantId=${consId}&projectId=${projectId}`);
+          const rData = rRes.ok ? await rRes.json() : { reports: [] };
+          setReports(rData.reports || []);
+        } else {
+          setReports([]);
+        }
+      } catch { setReports([]); }
+
+      // Certificates - optional, don't block
+      try {
+        const cRes = await fetch(`/api/projects/${projectId}/certificates`);
+        if (cRes.ok) {
+          const cData = await cRes.json();
+          setCertificates(Array.isArray(cData) ? cData : []);
+        } else {
+          console.warn("Certificates API returned", cRes.status);
+          setCertificates([]);
+        }
+      } catch { setCertificates([]); }
       
-    } catch (error) {
+    } catch (error: any) {
        console.error(error);
+       setFetchError(error.message || JSON.stringify(error));
     }
     setDetailLoading(false);
   };
@@ -313,12 +348,34 @@ export default function AdminProyectos() {
       );
     }
 
+    if (fetchError) {
+      return (
+        <div className="p-6">
+          <button onClick={openList} className="flex items-center text-text-muted hover:text-brand mb-6 transition-colors">
+            <ArrowLeft className="h-5 w-5 mr-2" />
+            Volver
+          </button>
+          <div className="bg-red-500/10 border border-red-500/30 text-red-500 p-4 rounded-xl">
+            <h3 className="font-bold text-lg mb-2">Error de conexión con Base de Datos o API</h3>
+            <p className="font-mono text-sm whitespace-pre-wrap">{fetchError}</p>
+            <p className="mt-4 text-xs opacity-80">
+              Vercel deploy check:
+              1. ¿Están configuradas las variables de entorno de Supabase? (NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
+              2. ¿Se ejecutó el prisma generate?
+              3. ¿Existe timeout de Vercel (10s)?
+            </p>
+          </div>
+        </div>
+      );
+    }
+
     if (!detailProject) {
       return (
-        <div className="flex flex-col items-center justify-center p-16 text-text-muted gap-3 animate-fade-in">
-           <p className="font-bold">Error al cargar o el proyecto no existe.</p>
-           <button onClick={openList} className="btn-secondary px-4 py-2 mt-2 flex items-center gap-2 text-sm shadow-sm">
-             <ArrowLeft size={16} /> Volver a la lista
+        <div className="flex flex-col items-center justify-center p-16 text-text-muted gap-4 animate-fade-in">
+           <p className="text-danger font-bold text-xl">Error Fatal</p>
+           <p className="text-sm">El proyecto dejó de cargar sin error explícito.</p>
+           <button onClick={openList} className="btn-secondary px-4 py-2 mt-4 text-sm flex items-center gap-2">
+             <ArrowLeft size={16}/> Volver al listado
            </button>
         </div>
       );
@@ -602,7 +659,7 @@ export default function AdminProyectos() {
 
         {/* Modal: ADD GOAL */}
         {showAddGoal && (
-           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setShowAddGoal(false)}>
+           <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4 min-h-screen" onClick={() => setShowAddGoal(false)}>
              <div className="bg-white rounded-2xl w-full max-w-md animate-scale-in p-6" onClick={e => e.stopPropagation()}>
                 <h2 className="text-lg font-bold mb-4">Asignar Nuevo Objetivo</h2>
                 <form onSubmit={handleAddGoal} className="space-y-4">
@@ -632,7 +689,7 @@ export default function AdminProyectos() {
 
         {/* Modal: PREVIEW */}
         {previewUrl && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4" onClick={() => setPreviewUrl(null)}>
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4 min-h-screen" onClick={() => setPreviewUrl(null)}>
             <div className="bg-white rounded-2xl w-full max-w-4xl h-[85vh] flex flex-col animate-scale-in overflow-hidden" onClick={e => e.stopPropagation()}>
               <div className="flex items-center justify-between p-4 border-b border-border">
                 <h2 className="text-lg font-bold flex items-center gap-2">
@@ -651,7 +708,7 @@ export default function AdminProyectos() {
 
         {/* Modal: CERTIFICATES LIST */}
         {showCertModal && (
-          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4" onClick={() => setShowCertModal(false)}>
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4 min-h-screen" onClick={() => setShowCertModal(false)}>
             <div className="bg-white rounded-2xl w-full max-w-4xl max-h-[85vh] flex flex-col animate-scale-in" onClick={e => e.stopPropagation()}>
               <div className="flex flex-col sm:flex-row sm:items-center justify-between p-5 border-b border-border bg-surface/30 rounded-t-2xl gap-4">
                 <div>
@@ -716,7 +773,13 @@ export default function AdminProyectos() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {loading ? (
+        {fetchError ? (
+          <div className="col-span-full p-6 bg-red-500/10 border border-red-500/30 text-red-500 rounded-xl relative">
+             <h3 className="font-bold mb-2 flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-red-500"></div> Error de Fetch (Proyectos)</h3>
+             <pre className="font-mono text-xs whitespace-pre-wrap bg-red-500/5 p-3 rounded">{fetchError}</pre>
+             <button onClick={fetchData} className="mt-3 px-3 py-1.5 bg-red-500/20 hover:bg-red-500/30 text-red-600 rounded text-xs font-bold transition-colors">Reintentar Conexión</button>
+          </div>
+        ) : loading ? (
           <div className="col-span-full p-8 flex items-center justify-center gap-2 text-text-muted">
             <Loader2 size={18} className="animate-spin" /> Cargando proyectos...
           </div>
@@ -776,7 +839,7 @@ export default function AdminProyectos() {
       </div>
 
       {showAdd && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setShowAdd(false)}>
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4 min-h-screen" onClick={() => setShowAdd(false)}>
           <div className="bg-white p-6 rounded-xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto animate-scale-in" onClick={(e) => e.stopPropagation()}>
             <h3 className="text-xl font-bold mb-4">Añadir Nuevo Proyecto</h3>
             
@@ -831,7 +894,7 @@ export default function AdminProyectos() {
       )}
 
       {showEdit && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setShowEdit(false)}>
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4 min-h-screen" onClick={() => setShowEdit(false)}>
           <div className="bg-white p-6 rounded-xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto animate-scale-in" onClick={(e) => e.stopPropagation()}>
             <h3 className="text-xl font-bold mb-4">Editar Proyecto</h3>
             

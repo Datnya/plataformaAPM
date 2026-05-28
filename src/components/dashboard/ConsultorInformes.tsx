@@ -282,7 +282,7 @@ export default function ConsultorInformes() {
 
       {/* Preview Modal */}
       {previewUrl && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => setPreviewUrl(null)}>
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4 min-h-screen" onClick={() => setPreviewUrl(null)}>
           <div className="bg-white rounded-2xl w-full max-w-4xl h-[85vh] flex flex-col animate-scale-in overflow-hidden" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between p-4 border-b border-border">
               <h2 className="text-lg font-bold flex items-center gap-2">

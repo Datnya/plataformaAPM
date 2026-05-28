@@ -412,7 +412,7 @@ export default function AdminCalendario() {
 
       {/* ═══ ACTIVITY MODAL ═══ */}
       {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setShowModal(false)}>
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4 min-h-screen" onClick={() => setShowModal(false)}>
           <div className="bg-white p-6 rounded-xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto animate-scale-in" onClick={(e) => e.stopPropagation()}>
             {errorMsg && (
               <div className="bg-danger/10 text-danger border border-danger/20 p-3 rounded mb-4 text-center text-sm">
@@ -472,7 +472,7 @@ export default function AdminCalendario() {
 
       {/* ═══ NOTE MODAL ═══ */}
       {showNoteModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setShowNoteModal(false)}>
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4 min-h-screen" onClick={() => setShowNoteModal(false)}>
           <div className="bg-white p-6 rounded-xl shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto animate-scale-in" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-bold">Nuevo Recordatorio</h3>

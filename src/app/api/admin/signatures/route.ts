@@ -1,17 +1,20 @@
 export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { requireRole } from "@/lib/auth-guard";
-import { supabaseAdmin } from "@/lib/supabase/admin";
+import { getSupabaseAdmin } from "@/lib/supabase/admin";
+import crypto from "crypto";
 
 export async function GET() {
   try {
     const auth = await requireRole(["ADMIN"]);
     if ("error" in auth) return auth.error;
 
-    const { data, error } = await supabaseAdmin
+    const supabase = getSupabaseAdmin();
+    const { data, error } = await supabase
       .from("consultant_signatures")
       .select("id, name, cargo, signature_url, is_gerente, created_at")
-      .order("is_gerente", { ascending: false });
+      .order("is_gerente", { ascending: false })
+      .order("created_at", { ascending: false });
 
     if (error) throw error;
     return NextResponse.json(data || []);
@@ -28,36 +31,46 @@ export async function POST(req: Request) {
 
     const { name, cargo, base64Image, isGerente } = await req.json();
     if (!name || !base64Image) {
-      return NextResponse.json({ error: "Faltan campos requeridos" }, { status: 400 });
+      return NextResponse.json({ error: "Faltan campos requeridos (name y base64Image)" }, { status: 400 });
     }
 
-    // Convert base64 to buffer
+    let supabase;
+    try {
+      supabase = getSupabaseAdmin();
+    } catch (envErr: any) {
+      return NextResponse.json({ error: `Config error: ${envErr.message}` }, { status: 500 });
+    }
+
+    // Convert base64 to buffer - detect content type
     const buffer = Buffer.from(base64Image, "base64");
     const sigId = crypto.randomUUID();
     const filePath = `firmas/${sigId}.png`;
 
     // Upload to Supabase Storage (bucket: certificados)
-    const { error: uploadError } = await supabaseAdmin.storage
+    const { error: uploadError } = await supabase.storage
       .from("certificados")
       .upload(filePath, buffer, { contentType: "image/png", upsert: true });
 
-    if (uploadError) throw uploadError;
+    if (uploadError) {
+      console.error("Storage upload failed:", uploadError);
+      return NextResponse.json({ error: `Upload error: ${uploadError.message}` }, { status: 500 });
+    }
 
     // Get public URL
-    const { data: urlData } = supabaseAdmin.storage
+    const { data: urlData } = supabase.storage
       .from("certificados")
       .getPublicUrl(filePath);
 
     // If marking as gerente, unmark previous gerente
     if (isGerente) {
-      await supabaseAdmin
+      await supabase
         .from("consultant_signatures")
         .update({ is_gerente: false })
         .eq("is_gerente", true);
     }
 
     // Insert record
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await supabase
       .from("consultant_signatures")
       .insert({
         id: sigId,
@@ -69,11 +82,14 @@ export async function POST(req: Request) {
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) {
+      console.error("DB insert failed:", error);
+      return NextResponse.json({ error: `DB error: ${error.message}` }, { status: 500 });
+    }
     return NextResponse.json(data);
-  } catch (error) {
+  } catch (error: any) {
     console.error("Signatures POST error:", error);
-    return NextResponse.json({ error: "Error saving signature" }, { status: 500 });
+    return NextResponse.json({ error: `Error saving signature: ${error.message || JSON.stringify(error)}` }, { status: 500 });
   }
 }
 
@@ -86,13 +102,15 @@ export async function DELETE(req: Request) {
     const id = searchParams.get("id");
     if (!id) return NextResponse.json({ error: "ID requerido" }, { status: 400 });
 
+    const supabase = getSupabaseAdmin();
+
     // Delete from storage
-    await supabaseAdmin.storage
+    await supabase.storage
       .from("certificados")
       .remove([`firmas/${id}.png`]);
 
     // Delete from DB
-    const { error } = await supabaseAdmin
+    const { error } = await supabase
       .from("consultant_signatures")
       .delete()
       .eq("id", id);
@@ -110,18 +128,19 @@ export async function PATCH(req: Request) {
     const auth = await requireRole(["ADMIN"]);
     if ("error" in auth) return auth.error;
 
+    const supabase = getSupabaseAdmin();
     const { id, isGerente } = await req.json();
     if (!id) return NextResponse.json({ error: "ID requerido" }, { status: 400 });
 
     // Unmark previous gerente if setting a new one
     if (isGerente) {
-      await supabaseAdmin
+      await supabase
         .from("consultant_signatures")
         .update({ is_gerente: false })
         .eq("is_gerente", true);
     }
 
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await supabase
       .from("consultant_signatures")
       .update({ is_gerente: isGerente })
       .eq("id", id)

@@ -2,6 +2,7 @@
 export const APP_NAME = "APM Group - Control de Proyectos";
 export const MAX_CLIENT_ACCOUNTS_PER_COMPANY = 3;
 export const LOGO_PATH = "/Im%C3%A1genes/LOGO APM.png";
+export const LOGO_WHITE_PATH = "/LOGO APM LETRAS BLANCAS.png";
 
 // ─── Goal / Status UI Mappings ───────────────────────────────────────────────
 

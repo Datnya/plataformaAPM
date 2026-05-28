@@ -6,6 +6,7 @@ import {
   Trash2, Plus, X, Download, FileDown, Star, Eye, Save
 } from "lucide-react";
 import * as XLSX from "xlsx";
+import { createClient as createBrowserSupabase } from "@/lib/supabase/client";
 
 /* ─── Types ─────────────────────────────────────────────── */
 interface Signature {
@@ -127,6 +128,7 @@ export default function AdminCertificados() {
   // Guardar a proyecto
   const [savingToProject, setSavingToProject] = useState(false);
   const [isSavedToProject, setIsSavedToProject] = useState(false);
+  const [isZipping, setIsZipping] = useState(false); // Added for ZIP building state
   // New signature form
   const [newSigName, setNewSigName] = useState("");
   const [newSigCargo, setNewSigCargo] = useState("");
@@ -145,6 +147,9 @@ export default function AdminCertificados() {
     ]);
     const projData = await projRes.json();
     const sigData = await sigRes.json();
+
+    if (!Array.isArray(projData)) console.error("Projects API error:", projData);
+    if (!Array.isArray(sigData)) console.error("Signatures API error:", sigData);
 
     const projs = Array.isArray(projData) ? projData : [];
     const sigs = Array.isArray(sigData) ? sigData : [];
@@ -167,8 +172,33 @@ export default function AdminCertificados() {
     const reader = new FileReader();
     reader.onload = (ev) => {
       const wb = XLSX.read(ev.target?.result, { type: "binary" });
-      const ws = wb.Sheets[wb.SheetNames[0]];
-      setExcelData(XLSX.utils.sheet_to_json(ws) as Record<string, unknown>[]);
+
+      // Prefer the sheet named "Certificados" (case-insensitive), otherwise use the first sheet
+      const certSheetName = wb.SheetNames.find(
+        (name) => name.toLowerCase().trim() === "certificados"
+      );
+      const sheetName = certSheetName || wb.SheetNames[0];
+      const ws = wb.Sheets[sheetName];
+      
+      // Read as 2D array to find where the actual headers are
+      const rawData = XLSX.utils.sheet_to_json(ws, { header: 1 }) as any[][];
+      const normalize = (s: string) => s ? String(s).normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, " ").toLowerCase().trim() : "";
+      
+      let headerRowIndex = 0;
+      for (let i = 0; i < rawData.length; i++) {
+        const row = rawData[i];
+        if (!row || !Array.isArray(row)) continue;
+        
+        const strRow = row.map(v => normalize(String(v)));
+        if (strRow.includes("nombres") || strRow.includes("apellido paterno") || strRow.includes("codigos") || strRow.includes("apellidos")) {
+          headerRowIndex = i;
+          break;
+        }
+      }
+
+      // Parse data starting exactly from the header row
+      const dataObjects = XLSX.utils.sheet_to_json(ws, { range: headerRowIndex });
+      setExcelData(dataObjects as Record<string, unknown>[]);
     };
     reader.readAsBinaryString(file);
   };
@@ -183,12 +213,13 @@ export default function AdminCertificados() {
     const QRCode = await import("qrcode");
 
     try {
-      const bgRes = await fetch("/bg-final.pdf");
+      const bgRes = await fetch("/bg-certificado.pdf");
       if (!bgRes.ok) throw new Error("No se pudo cargar el PDF de fondo");
       const bgBytes = await bgRes.arrayBuffer();
-      
+
+      // Use the new background PDF directly (it already has correct A4 dimensions)
       const doc = await PDFDocument.load(bgBytes);
-      const page = doc.getPages()[0]; 
+      const page = doc.getPages()[0];
       const { width: pageWidthPt, height: pageHeightPt } = page.getSize();
 
       const fontBold = await doc.embedFont(StandardFonts.HelveticaBold);
@@ -198,10 +229,9 @@ export default function AdminCertificados() {
       const mm2pt = (mm: number) => mm * 2.83465;
       const pt2mm = (pt: number) => pt / 2.83465;
 
-      // Dynamically compute the TRUE center of the page in mm
-      const PAGE_W_MM = pt2mm(pageWidthPt);  // actual page width in mm
-      const PAGE_H_MM = pt2mm(pageHeightPt); // actual page height in mm
-      const CX = PAGE_W_MM / 2;              // TRUE horizontal center
+      const PAGE_W_MM = pt2mm(pageWidthPt);
+      const PAGE_H_MM = pt2mm(pageHeightPt);
+      const CX = PAGE_W_MM / 2;
 
       console.log(`PDF page: ${PAGE_W_MM.toFixed(1)}mm x ${PAGE_H_MM.toFixed(1)}mm — center at ${CX.toFixed(1)}mm`);
 
@@ -212,14 +242,12 @@ export default function AdminCertificados() {
         return rgb(r, g, b);
       };
 
-      // xMmCenter: horizontal center in mm from left edge
-      // yMmFromTop: vertical position in mm from TOP of page
       const drawText = (
-        text: string, 
-        xMmCenter: number, 
-        yMmFromTop: number, 
-        sizePt: number, 
-        colorHex: string, 
+        text: string,
+        xMmCenter: number,
+        yMmFromTop: number,
+        sizePt: number,
+        colorHex: string,
         fontId: any
       ) => {
         const textStr = text || "";
@@ -253,82 +281,84 @@ export default function AdminCertificados() {
         });
       };
 
-      // Sello parameters (used for QR positioning too)
-      const SELLO_CX = 70;   // center-x: 70mm from left
-      const SELLO_CY = 135;  // center-y: bajado 3cm (de 105 a 135)
-      const SELLO_W = 80;    // 80mm wide
-
-      /* ── Sello APM on the LEFT ── */
-      try {
-        const selloRes = await fetch("/sello-apm.png");
-        if (selloRes.ok) {
-          const selloImage = await doc.embedPng(await selloRes.arrayBuffer());
-          drawImageCenter(selloImage, SELLO_CX, SELLO_CY, SELLO_W); 
-        }
-      } catch (err) { console.error("Error drawing Sello:", err); }
+      // ══════════════════════════════════════════════════════
+      // FIXED POSITIONS (mm from top) — calibrated to A4 landscape reference
+      // ══════════════════════════════════════════════════════
 
       /* ── LOGO APM at Top Center ── */
       try {
         const logoRes = await fetch("/logo-apm.png");
         if (logoRes.ok) {
           const logoImage = await doc.embedPng(await logoRes.arrayBuffer());
-          drawImageCenter(logoImage, CX, 30, 55);
+          drawImageCenter(logoImage, CX, 26, 35);
         }
       } catch (err) { console.error("Error drawing Logo:", err); }
 
-      // ── PROPORTIONAL LAYOUT ──
-      // Dynamically distribute content to fill the page without leaving empty gaps
-      const TOP_START = 50;  // mm from top where text content begins (below logo)
-      const BOTTOM_LIMIT = PAGE_H_MM - 20; // 2cm from bottom edge
-      const CONTENT_H = BOTTOM_LIMIT - TOP_START; // total available vertical space
+      // Title
+      drawText(courseTitle.toUpperCase(), CX, 54, 19, "#1e293b", fontBold);
 
-      // Position each element as a proportion of the available content height
-      const yAt = (pct: number) => TOP_START + CONTENT_H * pct;
+      // "Se otorga a:"
+      drawText("Se otorga a:", CX, 63, 13, "#6b7280", fontItalic);
 
-      // Title (very large, bold)
-      drawText(courseTitle.toUpperCase(), CX, yAt(0.04), 30, "#1e293b", fontBold);
+      // Participant name
+      drawText(participantName.toUpperCase(), CX, 73, 22, "#111827", fontBold);
 
-      // "Se otorga a:" — reduced interline from title
-      drawText("Se otorga a:", CX, yAt(0.10), 22, "#6b7280", fontItalic);
+      // "Por haber completado..."
+      drawText("Por haber completado satisfactoriamente el programa de:", CX, 83, 12, "#4b5563", fontNormal);
 
-      // Participant name — reduced interline
-      drawText(participantName.toUpperCase(), CX, yAt(0.18), 34, "#111827", fontBold);
-
-      // "Por haber completado..." — reduced interline (moved closer to name)
-      drawText("Por haber completado satisfactoriamente el programa de:", CX, yAt(0.24), 20, "#4b5563", fontNormal);
-
-      // Program description — reduced interline
+      // Program description
       const progDesc = programDescription || courseTitle;
-      drawText(progDesc, CX, yAt(0.31), 24, "#1e293b", fontBold);
+      drawText(progDesc, CX, 92, 15, "#1e293b", fontBold);
 
-      // Decorative line before normas
-      drawLine(CX - 40, yAt(0.37), CX + 40, yAt(0.37), "#d1d5db", 0.8);
+      // Decorative line
+      drawLine(CX - 40, 99, CX + 40, 99, "#d1d5db", 0.8);
 
       // "Basado en las normas:"
-      drawText("Basado en las normas:", CX, yAt(0.42), 20, "#6b7280", fontItalic);
+      drawText("Basado en las normas:", CX, 105, 12, "#6b7280", fontItalic);
 
       // Norma lines
       const normaLines = normasText.split("\n").map(l => l.trim()).filter(Boolean).slice(0, 6);
       normaLines.forEach((line, i) => {
-        drawText(line, CX, yAt(0.48 + i * 0.05), 19, "#374151", fontNormal);
+        drawText(line, CX, 112 + i * 7, 11, "#374151", fontNormal);
       });
 
-      // Data line: "Duración: XX horas   |   Fecha: ..." (reduced gap from normas)
-      const afterNormasPct = 0.48 + Math.max(normaLines.length - 1, 0) * 0.05;
-      const dataLinePct = Math.max(afterNormasPct + 0.02, 0.74); // gap further reduced!
-
-      // Use the raw date text (user types freely, e.g. multiple dates)
+      // Data line: "Duración: XX horas | Fecha: ..."
+      const afterNormasY = 112 + Math.max(normaLines.length, 1) * 7;
+      const dataLineY = Math.max(afterNormasY + 4, 150);
       const dataText = `Duración: ${duration}     |     Fecha: ${issueDate}`;
-      drawText(dataText, CX, yAt(dataLinePct), 19, "#374151", fontItalic);
+      drawText(dataText, CX, dataLineY, 11, "#374151", fontItalic);
 
-      // ── Signatures ──
-      const SIG_W_MM = 44;
-      const sigCargoY = yAt(0.97);    // cargo text near bottom
-      const sigNameY = yAt(0.93);      // name above cargo
-      const sigLineY = yAt(0.89);      // line above name
-      const SIG_CENTER_Y = yAt(0.85);  // signature image center
-      const SIG_LEFT_CX = CX - 55;
-      const SIG_RIGHT_CX = CX + 55;
+      // ── Sello APM on the LEFT ──
+      const SELLO_CX = 45;
+      const SELLO_CY = 120;
+      const SELLO_W = 55;
+      try {
+        const selloRes = await fetch("/sello-apm-v2.png");
+        if (selloRes.ok) {
+          const selloImage = await doc.embedPng(await selloRes.arrayBuffer());
+          drawImageCenter(selloImage, SELLO_CX, SELLO_CY, SELLO_W);
+        }
+      } catch (err) { console.error("Error drawing Sello:", err); }
+
+      // ── QR Code on the RIGHT (bigger, 2cm higher, same height as sello) ──
+      const QR_SIZE_MM = 40;
+      const QR_CX = PAGE_W_MM - SELLO_CX;
+      const QR_CY = SELLO_CY;
+      const qrUrl = `${window.location.origin}/certificados/validar/${accessKey}`;
+      const qrDataUrl = await QRCode.toDataURL(qrUrl, { margin: 1, width: 512 });
+      const qrBase64 = qrDataUrl.split(',')[1];
+      const qrBytes = Uint8Array.from(atob(qrBase64), c => c.charCodeAt(0));
+      const qrImage = await doc.embedPng(qrBytes);
+      drawImageCenter(qrImage, QR_CX, QR_CY, QR_SIZE_MM);
+
+      // ── Signatures (lines/names/cargos tight below signature image) ──
+      const SIG_W_MM = 35;
+      const SIG_CENTER_Y = 168;
+      const sigLineY = 176;
+      const sigNameY = 179;
+      const sigCargoY = 183;
+      const SIG_LEFT_CX = CX - 45;
+      const SIG_RIGHT_CX = CX + 45;
 
       const gerenteSig = signatures.find((s:any) => s.id === gerenteSigId);
       const consultorSig = signatures.find((s:any) => s.id === consultorSigId);
@@ -347,11 +377,9 @@ export default function AdminCertificados() {
             const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
             const d = imgData.data;
             for (let i = 0; i < d.length; i += 4) {
-              // Convert white or light grey pixels to highly transparent
               if (d[i] > 200 && d[i+1] > 200 && d[i+2] > 200) {
-                d[i+3] = 0; 
+                d[i+3] = 0;
               } else if (d[i] > 160 && d[i+1] > 160 && d[i+2] > 160) {
-                // Soft edges (anti-aliasing)
                 d[i+3] = Math.max(0, d[i+3] - 150);
               }
             }
@@ -370,7 +398,6 @@ export default function AdminCertificados() {
         try {
           const res = await fetch(url);
           const bytes = await res.arrayBuffer();
-          // Remove white background dynamically
           const cleanPngBytes = await makeTransparent(bytes);
           if (cleanPngBytes) {
             return await doc.embedPng(cleanPngBytes).catch(() => doc.embedJpg(bytes));
@@ -381,8 +408,7 @@ export default function AdminCertificados() {
 
       if (gerenteSig?.signature_url) {
         const img = await embedSigImage(gerenteSig.signature_url);
-        // Gerente is scaled slightly larger as requested
-        if (img) drawImageCenter(img, SIG_LEFT_CX, SIG_CENTER_Y, SIG_W_MM * 1.15);
+        if (img) drawImageCenter(img, SIG_LEFT_CX, SIG_CENTER_Y, SIG_W_MM + 20);
       }
 
       if (consultorSig?.signature_url) {
@@ -390,31 +416,20 @@ export default function AdminCertificados() {
         if (img) drawImageCenter(img, SIG_RIGHT_CX, SIG_CENTER_Y, SIG_W_MM);
       }
 
-      // ── QR Code on the RIGHT side, same height as the seal ──
-      const QR_SIZE_MM = 60;
-      const QR_CX = PAGE_W_MM - SELLO_CX;
-      const QR_CY = SELLO_CY;
-      const qrUrl = `${window.location.origin}/certificados/validar/${accessKey}`;
-      const qrDataUrl = await QRCode.toDataURL(qrUrl, { margin: 1, width: 512 });
-      const qrBase64 = qrDataUrl.split(',')[1];
-      const qrBytes = Uint8Array.from(atob(qrBase64), c => c.charCodeAt(0));
-      const qrImage = await doc.embedPng(qrBytes);
-      drawImageCenter(qrImage, QR_CX, QR_CY, QR_SIZE_MM);
-
       // Signature lines
       drawLine(SIG_LEFT_CX - 22, sigLineY, SIG_LEFT_CX + 22, sigLineY, "#6b7280", 1.0);
       drawLine(SIG_RIGHT_CX - 22, sigLineY, SIG_RIGHT_CX + 22, sigLineY, "#6b7280", 1.0);
 
       // Signature names
-      if (gerenteSig) drawText(gerenteSig.name, SIG_LEFT_CX, sigNameY, 17, "#1e293b", fontBold);
-      if (consultorSig) drawText(consultorSig.name, SIG_RIGHT_CX, sigNameY, 17, "#1e293b", fontBold);
+      if (gerenteSig) drawText(gerenteSig.name, SIG_LEFT_CX, sigNameY, 12, "#1e293b", fontBold);
+      if (consultorSig) drawText(consultorSig.name, SIG_RIGHT_CX, sigNameY, 12, "#1e293b", fontBold);
 
       // Signature cargos
-      if (gerenteSig) drawText(gerenteSig.cargo || "Gerente General", SIG_LEFT_CX, sigCargoY, 15, "#6b7280", fontNormal);
-      if (consultorSig) drawText(consultorSig.cargo || "Consultor", SIG_RIGHT_CX, sigCargoY, 15, "#6b7280", fontNormal);
+      if (gerenteSig) drawText(gerenteSig.cargo || "Gerente General", SIG_LEFT_CX, sigCargoY, 10, "#6b7280", fontNormal);
+      if (consultorSig) drawText(consultorSig.cargo || "Consultor", SIG_RIGHT_CX, sigCargoY, 10, "#6b7280", fontNormal);
 
-      // Código at bottom right
-      drawText(`Código: ${participantCode}`, PAGE_W_MM - 40, sigCargoY, 15, "#374151", fontNormal);
+      // Código at bottom right (1cm lower)
+      drawText(`Código: ${participantCode}`, PAGE_W_MM - 50, sigCargoY + 10, 10, "#374151", fontNormal);
 
       const pdfBytesFinal = await doc.save();
       return new Blob([pdfBytesFinal.buffer as ArrayBuffer], { type: "application/pdf" });
@@ -439,17 +454,40 @@ export default function AdminCertificados() {
     for (let i = 0; i < excelData.length; i++) {
       const row = excelData[i];
 
-      const firstName = String(
-        row["Nombres"] ?? row["Nombre"] ?? row["NOMBRES"] ?? row["NOMBRE"] ?? ""
-      ).trim();
-      const lastName = String(
-        row["Apellidos"] ?? row["Apellido"] ?? row["APELLIDOS"] ?? row["APELLIDO"] ?? ""
-      ).trim();
-      const code = String(
-        row["Código"] ?? row["Codigo"] ?? row["CÓDIGO"] ?? row["CODIGO"] ?? row["código"] ?? ""
-      ).trim();
+      // Flexible column matching: normalize keys to compare without accents/case
+      const normalize = (s: string) =>
+        s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, " ").toLowerCase().trim();
 
-      const fullName = lastName ? `${lastName}, ${firstName}` : firstName;
+      const getVal = (row: Record<string, unknown>, ...candidates: string[]) => {
+        for (const key of Object.keys(row)) {
+          const nk = normalize(key);
+          for (const c of candidates) {
+            if (nk === normalize(c)) return String(row[key] ?? "").trim();
+          }
+        }
+        return "";
+      };
+
+      const apPaterno = getVal(row, "Apellido Paterno", "Apellido paterno", "APELLIDO PATERNO", "Primer Apellido");
+      const apMaterno = getVal(row, "Apellido Materno", "Apellido materno", "APELLIDO MATERNO", "Segundo Apellido");
+      const nombres = getVal(row, "Nombres", "Nombre", "NOMBRES", "NOMBRE");
+      const code = getVal(row, "Códigos", "Codigo", "Código", "Codigos", "CÓDIGOS", "CODIGO", "CODIGOS", "código", "codigos");
+
+      // Also support old format: "Apellidos" (single column) for backwards compatibility
+      const apellidosSingle = getVal(row, "Apellidos", "Apellido", "APELLIDOS", "APELLIDO");
+
+      let fullName = "";
+      if (apPaterno || apMaterno) {
+        // New format: APELLIDO PATERNO APELLIDO MATERNO, NOMBRES
+        const apellidos = [apPaterno, apMaterno].filter(Boolean).join(" ");
+        fullName = nombres ? `${apellidos}, ${nombres}` : apellidos;
+      } else if (apellidosSingle) {
+        // Legacy format: APELLIDOS, NOMBRES
+        fullName = nombres ? `${apellidosSingle}, ${nombres}` : apellidosSingle;
+      } else if (nombres) {
+        fullName = nombres;
+      }
+
       if (!fullName) continue;
 
       const accessKey = crypto.randomUUID();
@@ -474,44 +512,73 @@ export default function AdminCertificados() {
   const handleSaveToProject = async () => {
     setSavingToProject(true);
     let errorCount = 0;
+    let lastError = "";
+    const supabaseClient = createBrowserSupabase();
 
     for (let i = 0; i < results.length; i++) {
       const cert = results[i];
       try {
-        const formData = new FormData();
-        formData.append("projectId", selectedProject);
-        formData.append("courseTitle", courseTitle);
-        formData.append("duration", duration);
-        formData.append("issueDate", issueDate);
-        formData.append("normas", normasText);
-        formData.append("participantName", cert.name);
-        formData.append("participantCode", cert.code);
-        formData.append("accessKey", cert.accessKey);
-
+        // Step 1: Ensure we have a PDF blob
         let blobToUpload = cert.pdfBlob;
         if (!blobToUpload) {
           blobToUpload = await generatePDF(cert.name, cert.code, cert.accessKey) || undefined;
-          if (!blobToUpload) { errorCount++; continue; }
+          if (!blobToUpload) { errorCount++; lastError = "No se pudo generar el PDF"; continue; }
         }
 
-        formData.append("pdf", blobToUpload, `${cert.name}.pdf`);
+        // Step 2: Upload PDF directly to Supabase Storage (bypasses Vercel 4.5MB limit)
+        const filePath = `pdfs/${selectedProject}/${cert.accessKey}.pdf`;
+        const { error: storageError } = await supabaseClient.storage
+          .from("certificados")
+          .upload(filePath, blobToUpload, { contentType: "application/pdf", upsert: true });
 
+        if (storageError) {
+          lastError = `Storage: ${storageError.message}`;
+          console.error(`Error subiendo PDF ${i + 1}:`, storageError);
+          errorCount++;
+          continue;
+        }
+
+        // Step 3: Get the public URL
+        const { data: urlData } = supabaseClient.storage
+          .from("certificados")
+          .getPublicUrl(filePath);
+
+        // Step 4: Save metadata via API (lightweight JSON, no file)
         const res = await fetch("/api/admin/certificates/upload", {
           method: "POST",
-          body: formData,
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            projectId: selectedProject,
+            courseTitle,
+            duration,
+            issueDate,
+            normas: normasText,
+            participantName: cert.name,
+            participantCode: cert.code,
+            accessKey: cert.accessKey,
+            pdfUrl: urlData.publicUrl,
+          }),
         });
 
-        if (!res.ok) { errorCount++; }
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          lastError = data.error || `HTTP ${res.status}`;
+          console.error(`Error guardando metadata ${i + 1}/${results.length}:`, data);
+          errorCount++;
+        }
       } catch (e) {
+        lastError = e instanceof Error ? e.message : "Error de conexión";
+        console.error(`Error cert ${i + 1}:`, e);
         errorCount++;
       }
     }
 
     setSavingToProject(false);
     if (errorCount > 0) {
-      alert(`Se guardaron con ${errorCount} errores. Inténtalo de nuevo para los fallidos.`);
+      alert(`Se guardaron con ${errorCount} errores.\nÚltimo error: ${lastError}`);
     } else {
       setIsSavedToProject(true);
+      alert(`✅ ${results.length} certificados guardados exitosamente en el proyecto.`);
     }
   };
 
@@ -533,27 +600,78 @@ export default function AdminCertificados() {
 
   /* ── Download all as ZIP ────────────────────────────────── */
   const downloadZip = async () => {
-    const JSZip = (await import("jszip")).default;
-    const { saveAs } = await import("file-saver");
-    const zip = new JSZip();
+    setIsZipping(true);
+    try {
+      const JSZip = (await import("jszip")).default;
+      const { saveAs } = await import("file-saver");
+      const zip = new JSZip();
 
-    const formattedDate = issueDate
-      ? issueDate.replace(/[/\\:*?"<>|]/g, "-").trim()
-      : "sin-fecha";
+      const formattedDate = issueDate
+        ? issueDate.replace(/[/\\:*?"<>|]/g, "-").trim()
+        : "sin-fecha";
 
-    const folderName = `Certificados ${formattedDate}`;
-    const folder = zip.folder(folderName) ?? zip;
+      const folderName = `Certificados ${formattedDate}`;
+      const folder = zip.folder(folderName) ?? zip;
 
-    for (const c of results) {
-      const blob = await generatePDF(c.name, c.code, c.accessKey);
-      if (blob) folder.file(`${c.name} - ${c.code}.pdf`, blob);
+      for (const c of results) {
+        const blob = await generatePDF(c.name, c.code, c.accessKey);
+        if (blob) folder.file(`${c.name} - ${c.code}.pdf`, blob);
+      }
+
+      const content = await zip.generateAsync({ type: "blob" });
+      saveAs(content, `${folderName}.zip`);
+    } finally {
+      setIsZipping(false);
     }
-
-    const content = await zip.generateAsync({ type: "blob" });
-    saveAs(content, `${folderName}.zip`);
   };
 
   /* ── Signature management ───────────────────────────────── */
+  const processSignatureImage = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement("canvas");
+          const ctx = canvas.getContext("2d");
+          if (!ctx) return reject("No canvas context");
+
+          canvas.width = img.width;
+          canvas.height = img.height;
+          ctx.drawImage(img, 0, 0);
+
+          const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          const data = imageData.data;
+
+          for (let i = 0; i < data.length; i += 4) {
+            const r = data[i];
+            const g = data[i + 1];
+            const b = data[i + 2];
+            
+            // Si es blanco o casi blanco, hacerlo transparente
+            if (r > 180 && g > 180 && b > 180) {
+              data[i + 3] = 0;
+            } else {
+              // Convertir el resto (la firma) a negro sólido y completamente opaco
+              data[i] = 0;     // R
+              data[i + 1] = 0; // G
+              data[i + 2] = 0; // B
+              data[i + 3] = 255; // Alpha
+            }
+          }
+
+          ctx.putImageData(imageData, 0, 0);
+          const dataUrl = canvas.toDataURL("image/png");
+          resolve(dataUrl.split(",")[1]);
+        };
+        img.onerror = () => reject("Error al cargar imagen en canvas");
+        img.src = e.target?.result as string;
+      };
+      reader.onerror = () => reject("Error al leer archivo");
+      reader.readAsDataURL(file);
+    });
+  };
+
   const handleUploadSig = async () => {
     if (!newSigName || !newSigFile) {
       alert("Ingresa el nombre y selecciona la imagen de la firma.");
@@ -561,7 +679,7 @@ export default function AdminCertificados() {
     }
     setUploadingSig(true);
     try {
-      const b64 = await blobToBase64(newSigFile);
+      const b64 = await processSignatureImage(newSigFile);
       const res = await fetch("/api/admin/signatures", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -735,7 +853,8 @@ export default function AdminCertificados() {
             <Upload className="mx-auto mb-2 opacity-50 text-text-muted" size={32} />
             <p className="font-semibold text-sm mb-1">Importar archivo Excel (.xlsx / .csv)</p>
             <p className="text-xs text-text-muted mb-4">
-              Columnas requeridas: <strong>Nombres</strong>, <strong>Apellidos</strong>, <strong>Código</strong>
+              Columnas requeridas: <strong>Apellido Paterno</strong>, <strong>Apellido Materno</strong>, <strong>Nombres</strong>, <strong>Códigos</strong>
+              <br /><span className="text-text-muted/70">Si el Excel tiene múltiples hojas, se usará la hoja &quot;Certificados&quot;.</span>
             </p>
             <input type="file" accept=".xlsx,.csv" onChange={handleFileUpload}
               className="block w-full text-sm text-text-muted text-center
@@ -797,7 +916,7 @@ export default function AdminCertificados() {
 
       {/* ── SIGNATURES MODAL ───────────────────────────────── */}
       {showSigsModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4 min-h-screen">
           <div className="bg-white rounded-2xl w-full max-w-lg shadow-xl overflow-hidden animate-scale-in">
             <div className="border-b border-border p-4 flex justify-between items-center bg-surface/30">
               <h2 className="font-bold">Gestión de Firmas</h2>
@@ -873,7 +992,7 @@ export default function AdminCertificados() {
 
       {/* ── RESULT MODAL ───────────────────────────────────── */}
       {showResultModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4 min-h-screen">
           <div className="bg-white rounded-2xl w-full max-w-4xl shadow-xl overflow-hidden flex flex-col max-h-[90vh] animate-scale-in">
 
             {/* Header */}
@@ -894,9 +1013,12 @@ export default function AdminCertificados() {
 
             {/* Download all button */}
             <div className="px-6 pt-4 pb-2 flex gap-3 justify-start items-center">
-              <button onClick={downloadZip}
-                className="btn-secondary py-2.5 px-5 text-sm font-bold flex items-center gap-2 shadow-sm bg-white hover:bg-surface transition-colors">
-                <FileDown size={18} className="text-primary"/> Descargar ZIP
+              <button 
+                onClick={downloadZip}
+                disabled={isZipping}
+                className="btn-secondary py-2.5 px-5 text-sm font-bold flex items-center gap-2 shadow-sm bg-white hover:bg-surface transition-all disabled:opacity-75 disabled:cursor-wait">
+                {isZipping ? <Loader2 size={18} className="text-primary animate-spin" /> : <FileDown size={18} className="text-primary" />}
+                {isZipping ? "Empaquetando..." : "Descargar ZIP"}
               </button>
               
               {isSavedToProject ? (
@@ -955,7 +1077,7 @@ export default function AdminCertificados() {
 
       {/* ── PDF PREVIEW MODAL ──────────────────────────────── */}
       {previewUrl && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/70 p-4">
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/70 p-4 min-h-screen">
           <div className="bg-white rounded-2xl w-full max-w-5xl shadow-xl overflow-hidden flex flex-col max-h-[95vh] animate-scale-in">
             <div className="border-b border-border p-3 flex justify-between items-center">
               <h3 className="font-bold text-sm">Vista Previa del Certificado</h3>

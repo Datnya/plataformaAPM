@@ -1,6 +1,6 @@
 export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabase/admin";
+import { getSupabaseAdmin } from "@/lib/supabase/admin";
 
 export async function GET(
   _req: Request,
@@ -13,6 +13,7 @@ export async function GET(
       return NextResponse.json({ error: "Clave de acceso requerida" }, { status: 400 });
     }
 
+    const supabaseAdmin = getSupabaseAdmin();
     const { data, error } = await supabaseAdmin
       .from("certificates")
       .select("*")

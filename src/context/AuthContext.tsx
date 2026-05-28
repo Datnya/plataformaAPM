@@ -10,7 +10,7 @@ import {
 } from "react";
 import { createClient } from "@/lib/supabase/client";
 
-export type UserRole = "ADMIN" | "CONSULTOR" | "CLIENTE";
+export type UserRole = "ADMIN" | "CONSULTOR" | "CLIENTE" | "ESPECIALISTA";
 
 interface AuthContextType {
   userRole: UserRole;

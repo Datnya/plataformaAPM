@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { requireRole } from "@/lib/auth-guard";
 
 const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25MB
-const ALLOWED_EXTENSIONS = ["jpg", "jpeg", "png", "pdf", "xlsx", "xls", "zip"];
+const ALLOWED_EXTENSIONS = ["jpg", "jpeg", "png", "pdf", "xlsx", "xls", "zip", "ppt", "pptx", "doc", "docx"];
 const MIME_MAP: Record<string, string> = {
   jpg: "image/jpeg",
   jpeg: "image/jpeg",
@@ -12,12 +12,16 @@ const MIME_MAP: Record<string, string> = {
   xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   xls: "application/vnd.ms-excel",
   zip: "application/zip",
+  ppt: "application/vnd.ms-powerpoint",
+  pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  doc: "application/msword",
+  docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 };
 
 export async function POST(req: NextRequest) {
   try {
-    // Verify user is authenticated and has ADMIN or CONSULTOR role
-    const auth = await requireRole(["ADMIN", "CONSULTOR"]);
+    // Verify user is authenticated and has ADMIN, CONSULTOR or ESPECIALISTA role
+    const auth = await requireRole(["ADMIN", "CONSULTOR", "ESPECIALISTA"]);
     if ("error" in auth) return auth.error;
 
     const data = await req.formData();
