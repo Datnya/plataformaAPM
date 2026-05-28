@@ -12,6 +12,7 @@ import {
   Share2,
   BookOpen,
   Award,
+  Grid,
 } from "lucide-react";
 import type { UserRole } from "@/context/AuthContext";
 
@@ -32,12 +33,9 @@ export const navItems: NavItem[] = [
   { label: "Inicio", view: "dashboard", icon: <LayoutDashboard size={18} strokeWidth={1.8} />, roles: ["CLIENTE"] },
   { label: "Resumen del Proyecto", view: "proyecto", icon: <ClipboardList size={18} strokeWidth={1.8} />, roles: ["CLIENTE"] },
   { label: "Evidencias e Informes", view: "evidencias", icon: <FolderOpen size={18} strokeWidth={1.8} />, roles: ["CLIENTE"] },
-  { label: "Gestión de Usuarios", view: "usuarios", icon: <Users size={18} strokeWidth={1.8} />, roles: ["ADMIN"] },
   { label: "Proyectos", view: "proyectos", icon: <FolderKanban size={18} strokeWidth={1.8} />, roles: ["ADMIN"] },
-  { label: "Control de Clientes", view: "control-clientes", icon: <UserCheck size={18} strokeWidth={1.8} />, roles: ["ADMIN"] },
   { label: "CRM Prospectos", view: "prospectos", icon: <Briefcase size={18} strokeWidth={1.8} />, roles: ["ADMIN"] },
   { label: "Gestión de Redes", view: "redes", icon: <Share2 size={18} strokeWidth={1.8} />, roles: ["ADMIN"] },
   { label: "Calendario APM", view: "calendario", icon: <CalendarDays size={18} strokeWidth={1.8} />, roles: ["ADMIN"] },
-  { label: "Manual de Usuario", view: "manual", icon: <BookOpen size={18} strokeWidth={1.8} />, roles: ["ADMIN"] },
-  { label: "Generador de Certificados", view: "certificados", icon: <Award size={18} strokeWidth={1.8} />, roles: ["ADMIN"] },
+  { label: "Más Herramientas", view: "mas-herramientas", icon: <Grid size={18} strokeWidth={1.8} />, roles: ["ADMIN"] },
 ];

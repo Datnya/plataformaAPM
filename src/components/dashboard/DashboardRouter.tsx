@@ -17,11 +17,12 @@ import AdminProyectos from "@/components/dashboard/AdminProyectos";
 import AdminProspectos from "@/components/dashboard/AdminProspectos";
 import AdminConsultorGoals from "@/components/dashboard/AdminConsultorGoals";
 import AdminCalendario from "@/components/dashboard/AdminCalendario";
-import AdminControlClientes from "@/components/dashboard/AdminControlClientes";
+import AdminMasHerramientas from "@/components/dashboard/AdminMasHerramientas";
 import AdminSocialContent from "@/components/dashboard/AdminSocialContent";
 import AdminManualUsuario from "@/components/dashboard/AdminManualUsuario";
 import ConsultorManualUsuario from "@/components/dashboard/ConsultorManualUsuario";
 import AdminCertificados from "@/components/dashboard/AdminCertificados";
+import AdminGeneradorPropuestas from "@/components/dashboard/AdminGeneradorPropuestas";
 
 const viewMap: Record<string, Record<string, React.FC>> = {
   CONSULTOR: {
@@ -42,12 +43,13 @@ const viewMap: Record<string, Record<string, React.FC>> = {
     usuarios: AdminUsuarios,
     proyectos: AdminProyectos,
     prospectos: AdminProspectos,
-    "control-clientes": AdminControlClientes,
+    "mas-herramientas": AdminMasHerramientas,
     "consultant-goals": AdminConsultorGoals,
     calendario: AdminCalendario,
     redes: AdminSocialContent,
     manual: AdminManualUsuario,
     certificados: AdminCertificados,
+    propuestas: AdminGeneradorPropuestas,
     // Admin can see consultor views too
     jornada: ConsultorJornada,
     objetivos: ConsultorObjetivos,

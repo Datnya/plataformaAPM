@@ -95,27 +95,7 @@ const sections = [
       { icon: Eye, label: "Ver Detalle", desc: "Abre el panel del proyecto con métricas completas" },
     ],
   },
-  {
-    id: "control-clientes",
-    title: "Control de Clientes",
-    icon: UserCheck,
-    color: "bg-success/10",
-    iconColor: "text-success",
-    accent: "#22c55e",
-    badge: "Clientes",
-    description:
-      "Directorio centralizado de todos los clientes activos con acceso a su información y proyectos asociados.",
-    features: [
-      { icon: Search, text: "Buscar clientes por nombre o empresa rápidamente" },
-      { icon: FileText, text: "Ver proyectos activos e historial de cada cliente" },
-      { icon: Bell, text: "Monitoreo del estado de servicio de cada cuenta" },
-    ],
-    tips: "Mantén los datos de contacto actualizados para que los consultores puedan coordinarse sin fricciones.",
-    actions: [
-      { icon: Eye, label: "Ver Cliente", desc: "Abre el perfil completo con proyectos y contactos" },
-      { icon: Pencil, label: "Editar", desc: "Actualiza información de la empresa cliente" },
-    ],
-  },
+
   {
     id: "prospectos",
     title: "CRM Prospectos",
