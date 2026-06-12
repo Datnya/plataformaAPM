@@ -61,38 +61,48 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    const supabase = createClient();
+    try {
+      const supabase = createClient();
 
-    // Check existing session on mount
-    supabase.auth.getUser().then(async ({ data: { user }, error }) => {
-      if (error) {
-        // Stale/invalid refresh token — clear it to avoid console spam
-        await supabase.auth.signOut();
+      // Check existing session on mount
+      supabase.auth.getUser().then(async ({ data: { user }, error }) => {
+        if (error) {
+          // Stale/invalid refresh token — clear it to avoid console spam
+          await supabase.auth.signOut().catch(() => {});
+          setIsLoading(false);
+        } else if (user) {
+          loadProfile(user.id).finally(() => setIsLoading(false));
+        } else {
+          setIsLoading(false);
+        }
+      }).catch((err) => {
+        console.error("Error checking auth session:", err);
         setIsLoading(false);
-      } else if (user) {
-        loadProfile(user.id).finally(() => setIsLoading(false));
-      } else {
-        setIsLoading(false);
-      }
-    });
+      });
 
-    // Listen for auth state changes
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session?.user) {
-        loadProfile(session.user.id);
-      } else {
-        setIsAuthenticated(false);
-        setUserId("");
-        setUserName("Usuario APM");
-        setUserRole("CLIENTE");
-        setCurrentView("dashboard");
-      }
-    });
+      // Listen for auth state changes
+      const {
+        data: { subscription },
+      } = supabase.auth.onAuthStateChange((_event, session) => {
+        if (session?.user) {
+          loadProfile(session.user.id);
+        } else {
+          setIsAuthenticated(false);
+          setUserId("");
+          setUserName("Usuario APM");
+          setUserRole("CLIENTE");
+          setCurrentView("dashboard");
+        }
+      });
 
-    return () => subscription.unsubscribe();
+      return () => subscription.unsubscribe();
+    } catch (error) {
+      console.error("Critical error initializing Supabase client:", error);
+      setIsLoading(false);
+    }
   }, [loadProfile]);
+
+
 
   const logout = useCallback(async () => {
     const supabase = createClient();
