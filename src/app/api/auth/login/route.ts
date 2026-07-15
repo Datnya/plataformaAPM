@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
       });
 
     if (authError) {
-      console.error("Supabase Auth Error:", authError.message);
+      console.error("Supabase Auth Error:", authError.message, authError);
 
       if (authError.message.includes("Invalid login credentials")) {
         return NextResponse.json(
@@ -31,8 +31,25 @@ export async function POST(req: NextRequest) {
         );
       }
 
+      // Detect connectivity / project-paused errors
+      if (
+        authError.message.includes("fetch failed") ||
+        authError.message.includes("ENOTFOUND") ||
+        authError.message.includes("network") ||
+        authError.name === "AuthRetryableFetchError" ||
+        (authError as any).status === 0
+      ) {
+        return NextResponse.json(
+          {
+            error:
+              "No se pudo conectar con el servidor de autenticación. Es posible que el proyecto de Supabase esté pausado. Contacta al administrador.",
+          },
+          { status: 503 }
+        );
+      }
+
       return NextResponse.json(
-        { error: "Error de autenticación. Intenta de nuevo." },
+        { error: `Error de autenticación: ${authError.message}` },
         { status: 401 }
       );
     }
