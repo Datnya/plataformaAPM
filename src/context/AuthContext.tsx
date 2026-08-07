@@ -64,21 +64,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const supabase = createClient();
 
-      // Check existing session on mount
-      supabase.auth.getUser().then(async ({ data: { user }, error }) => {
-        if (error) {
-          // Stale/invalid refresh token — clear it to avoid console spam
-          await supabase.auth.signOut().catch(() => {});
+      // Check existing session on mount with a timeout
+      // If Supabase is paused, the fetch can hang for a long time.
+      const checkAuth = supabase.auth.getUser();
+      const timeout = new Promise<{ data: { user: null }, error: Error }>((_, reject) =>
+        setTimeout(() => reject(new Error("Supabase auth check timed out (likely paused).")), 8000)
+      );
+
+      Promise.race([checkAuth, timeout])
+        .then(async ({ data: { user }, error }) => {
+          if (error) {
+            await supabase.auth.signOut().catch(() => {});
+            setIsLoading(false);
+          } else if (user) {
+            loadProfile(user.id).finally(() => setIsLoading(false));
+          } else {
+            setIsLoading(false);
+          }
+        })
+        .catch((err) => {
+          console.error("Error checking auth session:", err);
           setIsLoading(false);
-        } else if (user) {
-          loadProfile(user.id).finally(() => setIsLoading(false));
-        } else {
-          setIsLoading(false);
-        }
-      }).catch((err) => {
-        console.error("Error checking auth session:", err);
-        setIsLoading(false);
-      });
+        });
 
       // Listen for auth state changes
       const {
